@@ -30,6 +30,8 @@ export interface DashboardStats {
   open_sos: number;
   pending_kyc: number;
   live_rides: number;
+  expiring_documents: number;
+  expired_documents: number;
   hourly_rides: SeriesPoint[];
   category_split: CategorySplit[];
   state_breakdown: SeriesPoint[];
@@ -41,6 +43,24 @@ export interface DriverDocument {
   status: "pending" | "approved" | "rejected";
   file_url: string | null;
   uploaded_at: string | null;
+  expires_on: string | null;
+  reject_reason: string | null;
+  expiry_status: "expired" | "expiring_soon" | "valid" | null;
+  days_to_expiry: number | null;
+}
+
+export interface DocumentAlert {
+  driver_id: string;
+  driver_name: string;
+  phone: string;
+  category: string;
+  zone: string;
+  vehicle_number: string;
+  doc_type: string;
+  number: string;
+  expires_on: string;
+  days_to_expiry: number;
+  expiry_status: "expired" | "expiring_soon";
 }
 
 export interface Driver {
@@ -343,6 +363,15 @@ export const inr2 = (n: number) =>
 
 export const titleize = (s: string) =>
   s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+export const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+export const expiryLabel = (days: number) => {
+  if (days < 0) return `Expired ${Math.abs(days)}d ago`;
+  if (days === 0) return "Expires today";
+  return `${days}d left`;
+};
 
 export const fmtDateTime = (iso: string) =>
   new Date(iso).toLocaleString("en-IN", {

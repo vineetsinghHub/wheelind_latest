@@ -6,9 +6,9 @@ import { Eye } from "lucide-react";
 
 import { ApiError, apiGet, apiPatch } from "@/lib/api";
 import { EmptyState, PanelCard } from "@/components/common/MetricCard";
-import { ToneBadge } from "@/components/common/StatusBadge";
+import { ExpiryBadge, ToneBadge } from "@/components/common/StatusBadge";
 import type { Driver, DriverDocument } from "@/lib/types";
-import { SERVICE_CATEGORIES, fmtDateTime, inr, titleize } from "@/lib/types";
+import { SERVICE_CATEGORIES, fmtDate, fmtDateTime, inr, titleize } from "@/lib/types";
 
 function errMsg(err: unknown, fallback: string) {
   if (err instanceof ApiError && err.body && typeof err.body === "object") {
@@ -23,18 +23,44 @@ export default function DriversKYC() {
   const [kyc, setKyc] = useState("");
   const [category, setCategory] = useState("");
   const [q, setQ] = useState("");
+  const [docAlert, setDocAlert] = useState("");
   const [selected, setSelected] = useState<Driver | null>(null);
   const [viewingDoc, setViewingDoc] = useState<DriverDocument | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectingType, setRejectingType] = useState<string | null>(null);
 
   const params = new URLSearchParams();
   if (kyc) params.set("kyc_status", kyc);
   if (category) params.set("category", category);
   if (q) params.set("q", q);
+  if (docAlert) params.set("doc_alert", docAlert);
   const qs = params.toString();
 
   const { data: drivers, isError } = useQuery({
-    queryKey: ["drivers", kyc, category, q],
+    queryKey: ["drivers", kyc, category, q, docAlert],
     queryFn: () => apiGet<Driver[]>(`/drivers${qs ? `?${qs}` : ""}`),
+  });
+
+  // Keep the open drawer in sync with refetched data so badges update after a decision.
+  const live = selected ? (drivers ?? []).find((d) => d.id === selected.id) ?? selected : null;
+
+  const decideDoc = useMutation({
+    mutationFn: (v: { id: string; docType: string; status: string; reason: string }) =>
+      apiPatch<Driver>(`/drivers/${v.id}/documents/${encodeURIComponent(v.docType)}`, {
+        status: v.status,
+        reason: v.reason,
+      }),
+    onSuccess: (d, v) => {
+      toast.success(`${v.docType} ${v.status} — KYC file now ${titleize(d.kyc_status)}`);
+      setSelected(d);
+      setRejectingType(null);
+      setRejectReason("");
+      setViewingDoc(d.documents.find((x) => x.type === v.docType) ?? null);
+      qc.invalidateQueries({ queryKey: ["drivers"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["document-alerts"] });
+    },
+    onError: (e) => toast.error(errMsg(e, "Document decision failed")),
   });
 
   const decide = useMutation({
@@ -108,6 +134,17 @@ export default function DriversKYC() {
               {titleize(c)}
             </option>
           ))}
+        </select>
+        <select
+          value={docAlert}
+          onChange={(e) => setDocAlert(e.target.value)}
+          data-testid="drivers-docalert-filter"
+          className="rounded-lg border border-[#2A303F] bg-[#11141A] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]"
+        >
+          <option value="">All document states</option>
+          <option value="any">Needs renewal (any)</option>
+          <option value="expiring_soon">Expiring within 30 days</option>
+          <option value="expired">Already expired</option>
         </select>
       </div>
 
@@ -183,7 +220,7 @@ export default function DriversKYC() {
         </div>
       </PanelCard>
 
-      {selected ? (
+      {live ? (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/60" onClick={() => setSelected(null)}>
           <div
             data-testid="driver-detail-drawer"
@@ -193,7 +230,7 @@ export default function DriversKYC() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="wl-overline">KYC review</p>
-                <h2 className="mt-1 text-xl font-bold text-white">{selected.name}</h2>
+                <h2 className="mt-1 text-xl font-bold text-white">{live.name}</h2>
               </div>
               <button
                 type="button"
@@ -206,19 +243,19 @@ export default function DriversKYC() {
             </div>
 
             <div className="mt-4">
-              <ToneBadge value={selected.kyc_status} testId="driver-drawer-kyc-status" />
+              <ToneBadge value={live.kyc_status} testId="driver-drawer-kyc-status" />
             </div>
 
             <dl className="mt-5 space-y-2.5 text-[13px]">
               {[
-                ["Phone", selected.phone],
-                ["Service", titleize(selected.category)],
-                ["Vehicle", `${selected.vehicle_model} · ${selected.vehicle_number}`],
-                ["Zone", selected.zone],
-                ["Rating", `★ ${selected.rating}`],
-                ["Total rides", String(selected.total_rides)],
-                ["Lifetime earnings", inr(selected.lifetime_earnings)],
-                ["Monetization", selected.commission_model === "subscription" ? "Zero-commission pass" : "Commission plan"],
+                ["Phone", live.phone],
+                ["Service", titleize(live.category)],
+                ["Vehicle", `${live.vehicle_model} · ${live.vehicle_number}`],
+                ["Zone", live.zone],
+                ["Rating", `★ ${live.rating}`],
+                ["Total rides", String(live.total_rides)],
+                ["Lifetime earnings", inr(live.lifetime_earnings)],
+                ["Monetization", live.commission_model === "subscription" ? "Zero-commission pass" : "Commission plan"],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-4 border-b border-[#1E222B] pb-2">
                   <dt className="text-[#8E95A5]">{k}</dt>
@@ -229,42 +266,62 @@ export default function DriversKYC() {
 
             <p className="wl-overline mt-6">Uploaded documents</p>
             <ul className="mt-2 space-y-2">
-              {selected.documents.map((doc) => (
+              {live.documents.map((doc) => (
                 <li
                   key={doc.type}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-[#2A303F] bg-[#161A22] px-3 py-2"
+                  data-testid={`document-row-${doc.type.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+                  className="rounded-lg border border-[#2A303F] bg-[#161A22] px-3 py-2"
                 >
-                  <div className="min-w-0">
-                    <p className="text-[13px] text-white">{doc.type}</p>
-                    <p className="wl-mono text-[11px] text-[#7E8698]">{doc.number}</p>
-                    {doc.uploaded_at ? (
-                      <p className="text-[10px] text-[#5E6575]">Uploaded {fmtDateTime(doc.uploaded_at)}</p>
-                    ) : null}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] text-white">{doc.type}</p>
+                      <p className="wl-mono text-[11px] text-[#7E8698]">{doc.number}</p>
+                      {doc.expires_on ? (
+                        <p className="text-[10px] text-[#5E6575]">Valid till {fmtDate(doc.expires_on)}</p>
+                      ) : doc.uploaded_at ? (
+                        <p className="text-[10px] text-[#5E6575]">Uploaded {fmtDateTime(doc.uploaded_at)}</p>
+                      ) : null}
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <ToneBadge value={doc.status} />
+                        <button
+                          type="button"
+                          onClick={() => setViewingDoc(doc)}
+                          data-testid={`document-view-${doc.type.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+                          className="flex items-center gap-1 rounded-md border border-[#2A303F] px-2 py-1 text-[11px] text-[#9BA1B0] transition-colors duration-150 hover:border-[#D4AF37]/60 hover:text-white"
+                        >
+                          <Eye size={12} />
+                          View
+                        </button>
+                      </div>
+                      <ExpiryBadge
+                        status={doc.expiry_status}
+                        days={doc.days_to_expiry}
+                        testId={`document-expiry-${doc.type.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+                      />
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <ToneBadge value={doc.status} />
-                    <button
-                      type="button"
-                      onClick={() => setViewingDoc(doc)}
-                      data-testid={`document-view-${doc.type.toLowerCase().replace(/[^a-z]+/g, "-")}`}
-                      className="flex items-center gap-1 rounded-md border border-[#2A303F] px-2 py-1 text-[11px] text-[#9BA1B0] transition-colors duration-150 hover:border-[#D4AF37]/60 hover:text-white"
+                  {doc.reject_reason ? (
+                    <p
+                      data-testid={`document-reason-${doc.type.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+                      className="mt-2 rounded border border-[#7F1D1D] bg-[#2B1114] px-2 py-1 text-[11px] text-[#FF6B6B]"
                     >
-                      <Eye size={12} />
-                      View
-                    </button>
-                  </div>
+                      Rejected: {doc.reject_reason}
+                    </p>
+                  ) : null}
                 </li>
               ))}
             </ul>
 
-            <p className="wl-overline mt-6">KYC decision</p>
+            <p className="wl-overline mt-6">Whole-file KYC decision</p>
             <div className="mt-2 grid grid-cols-3 gap-2">
               {(["approved", "action_required", "rejected"] as const).map((s) => (
                 <button
                   key={s}
                   type="button"
                   disabled={decide.isPending}
-                  onClick={() => decide.mutate({ id: selected.id, status: s })}
+                  onClick={() => decide.mutate({ id: live.id, status: s })}
                   data-testid={`driver-kyc-action-${s}`}
                   className="rounded-md border border-[#2A303F] px-2 py-2 text-[11px] font-semibold text-[#C2C7D4] transition-colors duration-150 hover:border-[#D4AF37]/60 hover:text-white disabled:opacity-40"
                 >
@@ -277,11 +334,11 @@ export default function DriversKYC() {
             <button
               type="button"
               disabled={toggleOnline.isPending}
-              onClick={() => toggleOnline.mutate({ id: selected.id, is_online: !selected.is_online })}
+              onClick={() => toggleOnline.mutate({ id: live.id, is_online: !live.is_online })}
               data-testid="driver-toggle-online"
               className="mt-2 w-full rounded-lg border border-[#2A303F] px-4 py-2 text-sm text-[#C2C7D4] transition-colors duration-150 hover:border-[#D4AF37]/60 hover:text-white disabled:opacity-40"
             >
-              Force {selected.is_online ? "offline" : "online"}
+              Force {live.is_online ? "offline" : "online"}
             </button>
           </div>
         </div>
@@ -307,6 +364,18 @@ export default function DriversKYC() {
                   {viewingDoc.number}
                   {viewingDoc.uploaded_at ? ` · uploaded ${fmtDateTime(viewingDoc.uploaded_at)}` : ""}
                 </p>
+                {viewingDoc.expires_on ? (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[11px] text-[#8E95A5]">
+                      Valid till {fmtDate(viewingDoc.expires_on)}
+                    </span>
+                    <ExpiryBadge
+                      status={viewingDoc.expiry_status}
+                      days={viewingDoc.days_to_expiry}
+                      testId="document-viewer-expiry"
+                    />
+                  </div>
+                ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <ToneBadge value={viewingDoc.status} testId="document-viewer-status" />
@@ -339,21 +408,124 @@ export default function DriversKYC() {
               )}
             </div>
 
-            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#232834] px-5 py-3">
-              <p className="text-[11px] text-[#7E8698]">
-                Sample scan — verify the number against the partner's original document.
-              </p>
-              {viewingDoc.file_url ? (
-                <a
-                  href={viewingDoc.file_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  data-testid="document-viewer-open-tab"
-                  className="rounded-md border border-[#2A303F] px-3 py-1.5 text-[11px] text-[#F5D061] transition-colors duration-150 hover:border-[#D4AF37]/60"
+            <footer className="space-y-3 border-t border-[#232834] px-5 py-3">
+              {viewingDoc.reject_reason ? (
+                <p
+                  data-testid="document-viewer-reason"
+                  className="rounded border border-[#7F1D1D] bg-[#2B1114] px-2.5 py-1.5 text-[11px] text-[#FF6B6B]"
                 >
-                  Open full size
-                </a>
+                  Rejected: {viewingDoc.reject_reason}
+                </p>
               ) : null}
+
+              {rejectingType === viewingDoc.type ? (
+                <div className="space-y-2" data-testid="document-reject-form">
+                  <label className="block text-[11px] font-medium text-[#9BA1B0]">
+                    Why is this document being rejected?
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["Blurred / unreadable scan", "Expired document", "Name mismatch", "Details do not match vehicle"].map(
+                      (r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => setRejectReason(r)}
+                          data-testid={`document-reject-preset-${r.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+                          className="rounded-md border border-[#2A303F] px-2 py-1 text-[10px] text-[#9BA1B0] transition-colors duration-150 hover:border-[#D4AF37]/60 hover:text-white"
+                        >
+                          {r}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    rows={2}
+                    placeholder="Reason shared with the partner…"
+                    data-testid="document-reject-reason-input"
+                    className="w-full rounded-lg border border-[#2A303F] bg-[#11141A] px-3 py-2 text-[12px] text-white outline-none placeholder:text-[#5E6575] focus:border-[#D4AF37]"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={decideDoc.isPending || !rejectReason.trim()}
+                      onClick={() =>
+                        live &&
+                        decideDoc.mutate({
+                          id: live.id,
+                          docType: viewingDoc.type,
+                          status: "rejected",
+                          reason: rejectReason,
+                        })
+                      }
+                      data-testid="document-reject-confirm"
+                      className="rounded-md bg-[#EF4444] px-3 py-1.5 text-[11px] font-semibold text-white transition-colors duration-150 hover:bg-[#DC2626] disabled:opacity-40"
+                    >
+                      Confirm rejection
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRejectingType(null);
+                        setRejectReason("");
+                      }}
+                      data-testid="document-reject-cancel"
+                      className="rounded-md border border-[#2A303F] px-3 py-1.5 text-[11px] text-[#9BA1B0] transition-colors duration-150 hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-[11px] text-[#7E8698]">
+                    Approve or reject this document on its own — the partner's other files stay untouched.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {viewingDoc.file_url ? (
+                      <a
+                        href={viewingDoc.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        data-testid="document-viewer-open-tab"
+                        className="rounded-md border border-[#2A303F] px-3 py-1.5 text-[11px] text-[#F5D061] transition-colors duration-150 hover:border-[#D4AF37]/60"
+                      >
+                        Open full size
+                      </a>
+                    ) : null}
+                    <button
+                      type="button"
+                      disabled={decideDoc.isPending || viewingDoc.status === "approved"}
+                      onClick={() =>
+                        live &&
+                        decideDoc.mutate({
+                          id: live.id,
+                          docType: viewingDoc.type,
+                          status: "approved",
+                          reason: "",
+                        })
+                      }
+                      data-testid="document-approve-button"
+                      className="rounded-md border border-[#064E3B] bg-[#0D241A] px-3 py-1.5 text-[11px] font-semibold text-[#34D399] transition-colors duration-150 hover:border-[#10B981] disabled:opacity-40"
+                    >
+                      Approve document
+                    </button>
+                    <button
+                      type="button"
+                      disabled={decideDoc.isPending}
+                      onClick={() => {
+                        setRejectingType(viewingDoc.type);
+                        setRejectReason("");
+                      }}
+                      data-testid="document-reject-button"
+                      className="rounded-md border border-[#7F1D1D] bg-[#2B1114] px-3 py-1.5 text-[11px] font-semibold text-[#FF6B6B] transition-colors duration-150 hover:border-[#EF4444] disabled:opacity-40"
+                    >
+                      Reject document
+                    </button>
+                  </div>
+                </div>
+              )}
             </footer>
           </div>
         </div>

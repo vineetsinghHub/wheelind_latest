@@ -37,6 +37,33 @@ const TONES: Record<string, string> = {
   refunded: "#3B82F6",
 };
 
+export function ExpiryBadge({
+  status,
+  days,
+  testId,
+}: {
+  status: "expired" | "expiring_soon" | "valid" | null;
+  days: number | null;
+  testId?: string;
+}) {
+  if (!status || days === null) return null;
+  const map = {
+    expired: { color: "#EF4444", label: `Expired ${Math.abs(days)}d ago` },
+    expiring_soon: { color: "#F59E0B", label: days === 0 ? "Expires today" : `Expires in ${days}d` },
+    valid: { color: "#10B981", label: `Valid ${days}d` },
+  } as const;
+  const { color, label } = map[status];
+  return (
+    <span
+      data-testid={testId}
+      className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap"
+      style={{ color, borderColor: `${color}55`, backgroundColor: `${color}18` }}
+    >
+      {label}
+    </span>
+  );
+}
+
 export function ToneBadge({ value, testId }: { value: string; testId?: string }) {
   const color = TONES[value] ?? "#8E95A5";
   return (

@@ -3,13 +3,13 @@ import { Link } from "react-router-dom";
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { AlertTriangle, BadgeIndianRupee, CarFront, IdCard, Radio, Users } from "lucide-react";
+import { AlertTriangle, BadgeIndianRupee, CalendarClock, CarFront, IdCard, Radio, Users } from "lucide-react";
 
 import { apiGet } from "@/lib/api";
 import { EmptyState, MetricCard, PanelCard } from "@/components/common/MetricCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import type { DashboardStats, SosIncident } from "@/lib/types";
-import { inr, titleize } from "@/lib/types";
+import type { DashboardStats, DocumentAlert, SosIncident } from "@/lib/types";
+import { expiryLabel, inr, titleize } from "@/lib/types";
 
 const PIE_COLORS = ["#D4AF37", "#10B981", "#3B82F6", "#F59E0B", "#8B5CF6", "#EC4899", "#F97316", "#64748B"];
 
@@ -24,6 +24,12 @@ export default function Dashboard() {
     queryKey: ["sos", "open"],
     queryFn: () => apiGet<SosIncident[]>("/sos?status=open"),
     refetchInterval: 30000,
+  });
+
+  const { data: alerts } = useQuery({
+    queryKey: ["document-alerts"],
+    queryFn: () => apiGet<DocumentAlert[]>("/drivers/document-alerts"),
+    refetchInterval: 60000,
   });
 
   const offline = isError || !stats;
@@ -196,7 +202,7 @@ export default function Dashboard() {
         </PanelCard>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           testId="metric-total-riders"
           label="Registered riders"
@@ -219,7 +225,86 @@ export default function Dashboard() {
           icon={<IdCard size={16} />}
           accent="#F97316"
         />
+        <MetricCard
+          testId="metric-expiring-documents"
+          label="Docs need renewal"
+          value={offline ? "—" : String(stats.expiring_documents + stats.expired_documents)}
+          sub={
+            offline
+              ? undefined
+              : `${stats.expired_documents} expired · ${stats.expiring_documents} within 30 days`
+          }
+          icon={<CalendarClock size={16} />}
+          accent="#EF4444"
+        />
       </div>
+
+      <PanelCard
+        testId="document-alerts-panel"
+        title="Document renewal alerts"
+        action={
+          <Link
+            to="/drivers"
+            data-testid="document-alerts-review-link"
+            className="text-[11px] text-[#F5D061] transition-colors duration-150 hover:text-[#E5C158]"
+          >
+            Review in Drivers &amp; KYC →
+          </Link>
+        }
+      >
+        <div className="max-h-[340px] overflow-y-auto">
+          {!alerts || alerts.length === 0 ? (
+            <EmptyState
+              message="No licence or insurance papers are expiring in the next 30 days."
+              testId="document-alerts-empty"
+            />
+          ) : (
+            <table className="w-full text-left text-[13px]">
+              <thead className="border-b border-[#232834] text-[11px] tracking-wider text-[#7E8698] uppercase">
+                <tr>
+                  <th className="px-5 py-3 font-semibold">Partner</th>
+                  <th className="px-5 py-3 font-semibold">Document</th>
+                  <th className="px-5 py-3 font-semibold">Vehicle</th>
+                  <th className="px-5 py-3 font-semibold">Zone</th>
+                  <th className="px-5 py-3 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#1E222B]">
+                {alerts.slice(0, 25).map((a) => (
+                  <tr
+                    key={`${a.driver_id}-${a.doc_type}`}
+                    data-testid={`document-alert-row-${a.driver_id}-${a.doc_type.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+                    className="transition-colors duration-150 hover:bg-[#161A22]"
+                  >
+                    <td className="px-5 py-3 text-white">
+                      {a.driver_name}
+                      <span className="wl-mono block text-[11px] text-[#7E8698]">{a.phone}</span>
+                    </td>
+                    <td className="px-5 py-3 text-[#C2C7D4]">
+                      {a.doc_type}
+                      <span className="wl-mono block text-[11px] text-[#7E8698]">{a.number}</span>
+                    </td>
+                    <td className="wl-mono px-5 py-3 text-[11px] text-[#C2C7D4]">{a.vehicle_number}</td>
+                    <td className="px-5 py-3 text-[#C2C7D4]">{a.zone}</td>
+                    <td className="px-5 py-3">
+                      <span
+                        className="inline-flex rounded-md border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap"
+                        style={{
+                          color: a.expiry_status === "expired" ? "#FF6B6B" : "#F59E0B",
+                          borderColor: a.expiry_status === "expired" ? "#7F1D1D" : "#634E1D",
+                          backgroundColor: a.expiry_status === "expired" ? "#2B1114" : "#2A2312",
+                        }}
+                      >
+                        {expiryLabel(a.days_to_expiry)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </PanelCard>
     </div>
   );
 }

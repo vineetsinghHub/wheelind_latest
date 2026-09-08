@@ -59,6 +59,8 @@ class DashboardStats(BaseModel):
     open_sos: int
     pending_kyc: int
     live_rides: int
+    expiring_documents: int
+    expired_documents: int
     hourly_rides: list[SeriesPoint]
     category_split: list[CategorySplit]
     state_breakdown: list[SeriesPoint]
@@ -71,6 +73,30 @@ class DriverDocument(BaseModel):
     status: Literal["pending", "approved", "rejected"]
     file_url: Optional[str] = None
     uploaded_at: Optional[datetime] = None
+    expires_on: Optional[datetime] = None
+    reject_reason: Optional[str] = None
+    # Server-computed on read (never stored): expired | expiring_soon | valid | None
+    expiry_status: Optional[str] = None
+    days_to_expiry: Optional[int] = None
+
+
+class DocumentDecision(BaseModel):
+    status: Literal["approved", "rejected", "pending"]
+    reason: str = ""
+
+
+class DocumentAlert(BaseModel):
+    driver_id: str
+    driver_name: str
+    phone: str
+    category: str
+    zone: str
+    vehicle_number: str
+    doc_type: str
+    number: str
+    expires_on: datetime
+    days_to_expiry: int
+    expiry_status: str
 
 
 class Driver(BaseModel):

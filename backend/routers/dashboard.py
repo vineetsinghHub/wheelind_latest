@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 
 from lib.auth import current_admin
 from lib.db import db
+from lib.kyc import expiry_status
 from models.schemas import (
     AdminUser, CategorySplit, DashboardStats, FleetDriver, FleetSnapshot, LiveTrip, SeriesPoint, utcnow,
 )
@@ -45,6 +46,18 @@ async def dashboard_stats(_: AdminUser = Depends(current_admin)):
     online = await db.drivers.count_documents({"is_online": True})
     approved = await db.drivers.count_documents({"kyc_status": "approved"})
     pending = await db.drivers.count_documents({"kyc_status": {"$in": ["pending", "action_required"]}})
+
+    # Document expiry rollup — server-anchored, same helper the alerts endpoint uses.
+    all_drivers = await db.drivers.find({}, {"documents": 1}).to_list(1000)
+    expiring = expired = 0
+    for d in all_drivers:
+        for doc in d.get("documents", []):
+            state = expiry_status(doc.get("expires_on"))
+            if state == "expiring_soon":
+                expiring += 1
+            elif state == "expired":
+                expired += 1
+
     riders = await db.riders.count_documents({})
     sos = await db.sos_incidents.count_documents({"status": {"$in": ["open", "acknowledged", "escalated"]}})
     live = await db.rides.count_documents({"state": {"$in": LIVE_STATES}})
@@ -61,6 +74,8 @@ async def dashboard_stats(_: AdminUser = Depends(current_admin)):
         open_sos=sos,
         pending_kyc=pending,
         live_rides=live,
+        expiring_documents=expiring,
+        expired_documents=expired,
         hourly_rides=hourly_points,
         category_split=splits,
         state_breakdown=state_points,

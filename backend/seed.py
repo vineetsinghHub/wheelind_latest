@@ -48,6 +48,10 @@ DOC_IMAGES = {
     "Aadhaar": "https://static.prod-images.emergentagent.com/jobs/0625bba6-3e80-4a7a-835a-379effd25ac9/images/01b47f0b3eea7a2cd3bbf449e439711219a2d51d2bca348765a809218f2d5c48.jpeg",
 }
 
+# Validity spreads so the seeded fleet contains genuinely expired, expiring-soon and healthy docs.
+LICENCE_VALIDITY = [-45, -12, -3, 4, 9, 15, 22, 28, 70, 140, 320, 500, 900, 1400]
+INSURANCE_VALIDITY = [-30, -8, -1, 2, 6, 11, 18, 26, 55, 120, 210, 340, 600]
+
 ADMINS = [
     ("admin@wheelind.in", "Wheelind@2026", "Vineet Singh", "super_admin"),
     ("fleet@wheelind.in", "Fleet@2026", "Ananya Mukherjee", "fleet_manager"),
@@ -149,7 +153,8 @@ async def main() -> None:
                 DriverDocument(type="Driving Licence", number=f"WB-{random.randint(10,99)}-{random.randint(100000,999999)}",
                                status="approved" if kyc == "approved" else "pending",
                                file_url=DOC_IMAGES["Driving Licence"],
-                               uploaded_at=utcnow() - timedelta(days=random.randint(2, 90))),
+                               uploaded_at=utcnow() - timedelta(days=random.randint(2, 90)),
+                               expires_on=utcnow() + timedelta(days=random.choice(LICENCE_VALIDITY))),
                 DriverDocument(type="Vehicle RC", number=f"RC{random.randint(100000,999999)}",
                                status="approved" if kyc == "approved" else "pending",
                                file_url=DOC_IMAGES["Vehicle RC"],
@@ -157,7 +162,8 @@ async def main() -> None:
                 DriverDocument(type="Insurance", number=f"INS{random.randint(100000,999999)}",
                                status="approved" if kyc == "approved" else "pending",
                                file_url=DOC_IMAGES["Insurance"],
-                               uploaded_at=utcnow() - timedelta(days=random.randint(2, 90))),
+                               uploaded_at=utcnow() - timedelta(days=random.randint(2, 90)),
+                               expires_on=utcnow() + timedelta(days=random.choice(INSURANCE_VALIDITY))),
                 DriverDocument(type="Aadhaar", number=f"XXXX-XXXX-{random.randint(1000,9999)}",
                                status="approved" if kyc == "approved" else "pending",
                                file_url=DOC_IMAGES["Aadhaar"],

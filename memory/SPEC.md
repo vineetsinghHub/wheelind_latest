@@ -61,20 +61,41 @@ Enforced server-side in `PATCH /api/rides/{id}/state`:
   usage → else **422**; unknown id → **404**. `active_subscribers` is never overwritten.
 - Every mutating route writes an `audit_logs` entry via `lib/auth.log_action`.
 
-## Driver KYC document scans
+## Driver KYC document scans, per-document review & expiry
 `DriverDocument.file_url` points at 4 AI-generated **sample** document images (driving licence,
 vehicle RC, insurance, identity card) hosted on the Emergent static CDN and assigned in `seed.py`
 via the `DOC_IMAGES` map. There is **no real file upload pipeline** — no object storage, no
 multipart endpoint. Replacing `DOC_IMAGES` with real S3/GCS keys is the upgrade path.
 
+**Per-document review** — `PATCH /api/drivers/{id}/documents/{doc_type}`:
+- A rejection **requires a non-blank reason** (422 otherwise) stored on `reject_reason`.
+- Unknown document type or driver → 404.
+- `lib/kyc.rollup_kyc_status()` derives the driver-level KYC from the documents: any rejected doc →
+  `action_required` (never `rejected` — a reviewer rejects a *document*, not a partner); all
+  approved → `approved`; otherwise `pending`. The bulk whole-file decision buttons still exist.
+- Approving a previously rejected document clears its `reject_reason`.
+
+**Expiry alerts** — only `Driving Licence` and `Insurance` carry `expires_on` (`EXPIRING_TYPES`).
+`lib/kyc.py` computes, server-side on every read (never stored), `expiry_status`
+(`expired` | `expiring_soon` | `valid` | `null`) and `days_to_expiry`, using a 30-day
+`EXPIRING_SOON_DAYS` window. Surfaces:
+- `GET /api/drivers/document-alerts?window_days=30` → soonest-first `DocumentAlert[]`.
+- `GET /api/drivers?doc_alert=any|expiring_soon|expired` filters the roster on that computed state.
+- `DashboardStats.expiring_documents` / `.expired_documents` feed the "Docs need renewal" tile and
+  the dashboard "Document renewal alerts" table.
+- Seed spreads `LICENCE_VALIDITY` / `INSURANCE_VALIDITY` so the fleet always contains genuinely
+  expired, expiring-soon and healthy documents.
+- **No outbound reminders are sent** — there is no SMS/email/push provider wired up; the alerts are
+  an in-console worklist only.
+
 ## Routes → pages
 | Path | Page | What it does |
 |---|---|---|
 | `/login` | `Login.tsx` | split branded login + 3 demo pills |
-| `/` | `Dashboard.tsx` | KPI tiles, hourly ride bar chart, revenue-by-service pie, lifecycle breakdown, open-SOS queue |
+| `/` | `Dashboard.tsx` | KPI tiles, hourly ride bar chart, revenue-by-service pie, lifecycle breakdown, open-SOS queue, **document renewal alerts table** |
 | `/fleet` | `LiveFleet.tsx` | **Leaflet** dark-cartography Kolkata map of online drivers + active trip monitor |
 | `/rides` | `Rides.tsx` | ride lookup, state/category/search filters, detail drawer with full fare breakup, lifecycle actions, refund |
-| `/drivers` | `DriversKYC.tsx` | partner roster, KYC review drawer with documents, **per-document View button → image preview modal** (status + upload date + "Open full size"), approve/action-required/reject, force online/offline |
+| `/drivers` | `DriversKYC.tsx` | partner roster, expiry-state filter, KYC review drawer, per-document **View → preview modal** with **Approve/Reject-this-document** (reason presets + free text) and expiry badges, whole-file KYC decision, force online/offline |
 | `/riders` | `Riders.tsx` | rider directory, 3 balances, active/restricted/blocked controls |
 | `/fares` | `FareConfig.tsx` | per-category fare breakup editor + live 8km sample preview, versioned saves |
 | `/commissions` | `CommissionPasses.tsx` | commission % per category + zero-commission passes: create, **Edit (prefills the form; `PUT /api/passes/{id}`, preserves `active_subscribers`)**, cancel-edit, pause/activate |
