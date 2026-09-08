@@ -19,6 +19,7 @@ function errMsg(e: unknown, fallback: string) {
 export default function CommissionPasses() {
   const qc = useQueryClient();
   const [edits, setEdits] = useState<Record<string, number>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     duration: "weekly",
@@ -26,6 +27,22 @@ export default function CommissionPasses() {
     fair_usage_rides: "",
     categories: [] as string[],
   });
+
+  function resetForm() {
+    setEditingId(null);
+    setForm({ name: "", duration: "weekly", price: "", fair_usage_rides: "", categories: [] });
+  }
+
+  function startEdit(p: SubscriptionPass) {
+    setEditingId(p.id);
+    setForm({
+      name: p.name,
+      duration: p.duration,
+      price: String(p.price),
+      fair_usage_rides: String(p.fair_usage_rides),
+      categories: [...p.categories],
+    });
+  }
 
   const { data: commissions, isError: cErr } = useQuery({
     queryKey: ["commissions"],
@@ -60,10 +77,28 @@ export default function CommissionPasses() {
       }),
     onSuccess: (p) => {
       toast.success(`${p.name} created`);
-      setForm({ name: "", duration: "weekly", price: "", fair_usage_rides: "", categories: [] });
+      resetForm();
       qc.invalidateQueries({ queryKey: ["passes"] });
     },
     onError: (e) => toast.error(errMsg(e, "Could not create pass")),
+  });
+
+  const updatePass = useMutation({
+    mutationFn: (id: string) =>
+      apiPut<SubscriptionPass>(`/passes/${id}`, {
+        name: form.name,
+        duration: form.duration,
+        price: Number(form.price),
+        categories: form.categories,
+        fair_usage_rides: Number(form.fair_usage_rides || 0),
+        status: passList.find((p) => p.id === id)?.status ?? "active",
+      }),
+    onSuccess: (p) => {
+      toast.success(`${p.name} updated`);
+      resetForm();
+      qc.invalidateQueries({ queryKey: ["passes"] });
+    },
+    onError: (e) => toast.error(errMsg(e, "Could not update pass")),
   });
 
   const togglePass = useMutation({
@@ -174,6 +209,14 @@ export default function CommissionPasses() {
                     <ToneBadge value={p.status} testId={`pass-status-${p.id}`} />
                     <button
                       type="button"
+                      onClick={() => startEdit(p)}
+                      data-testid={`pass-edit-${p.id}`}
+                      className="rounded-md border border-[#2A303F] px-2.5 py-1 text-[11px] text-[#F5D061] transition-colors duration-150 hover:border-[#D4AF37]/60"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
                       disabled={togglePass.isPending}
                       onClick={() => togglePass.mutate(p.id)}
                       data-testid={`pass-toggle-${p.id}`}
@@ -188,12 +231,29 @@ export default function CommissionPasses() {
           )}
         </PanelCard>
 
-        <PanelCard title="Create a pass plan" className="lg:col-span-5" testId="pass-create-panel">
+        <PanelCard
+          title={editingId ? "Edit pass plan" : "Create a pass plan"}
+          className="lg:col-span-5"
+          testId="pass-create-panel"
+          action={
+            editingId ? (
+              <button
+                type="button"
+                onClick={resetForm}
+                data-testid="pass-edit-cancel"
+                className="rounded-md border border-[#2A303F] px-2.5 py-1 text-[11px] text-[#9BA1B0] transition-colors duration-150 hover:border-[#D4AF37]/60 hover:text-white"
+              >
+                Cancel edit
+              </button>
+            ) : null
+          }
+        >
           <form
             className="space-y-4 p-5"
             onSubmit={(e) => {
               e.preventDefault();
-              createPass.mutate();
+              if (editingId) updatePass.mutate(editingId);
+              else createPass.mutate();
             }}
           >
             <div>
@@ -287,11 +347,17 @@ export default function CommissionPasses() {
 
             <button
               type="submit"
-              disabled={createPass.isPending}
-              data-testid="pass-create-submit"
+              disabled={createPass.isPending || updatePass.isPending}
+              data-testid={editingId ? "pass-update-submit" : "pass-create-submit"}
               className="w-full rounded-lg bg-[#D4AF37] px-4 py-2.5 text-sm font-semibold text-[#090A0C] transition-colors duration-150 hover:bg-[#E5C158] disabled:opacity-60"
             >
-              {createPass.isPending ? "Creating…" : "Create pass plan"}
+              {editingId
+                ? updatePass.isPending
+                  ? "Saving…"
+                  : "Save changes"
+                : createPass.isPending
+                  ? "Creating…"
+                  : "Create pass plan"}
             </button>
           </form>
         </PanelCard>

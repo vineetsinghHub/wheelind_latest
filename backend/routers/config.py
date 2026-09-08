@@ -4,7 +4,7 @@ from lib.auth import current_admin, log_action
 from lib.db import db
 from models.schemas import (
     AdminUser, CommissionConfig, CommissionUpdate, FareConfig, FareConfigUpdate, FeatureFlag,
-    FlagToggle, SubscriptionPass, SubscriptionPassCreate, utcnow,
+    FlagToggle, SubscriptionPass, SubscriptionPassCreate, SubscriptionPassUpdate, utcnow,
 )
 
 router = APIRouter(tags=["config"])
@@ -68,6 +68,22 @@ async def create_pass(payload: SubscriptionPassCreate, admin: AdminUser = Depend
     await db.subscription_passes.insert_one(obj.model_dump())
     await log_action(admin, "pass_created", "subscription_pass", obj.id, {"name": obj.name})
     return obj
+
+
+@router.put("/passes/{pass_id}", response_model=SubscriptionPass)
+async def update_pass(pass_id: str, payload: SubscriptionPassUpdate, admin: AdminUser = Depends(current_admin)):
+    doc = await db.subscription_passes.find_one({"id": pass_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Pass not found")
+    if payload.price <= 0:
+        raise HTTPException(status_code=422, detail="Pass price must be positive")
+    if not payload.categories:
+        raise HTTPException(status_code=422, detail="Select at least one eligible category")
+    if payload.fair_usage_rides < 0:
+        raise HTTPException(status_code=422, detail="Fair usage cap cannot be negative")
+    await db.subscription_passes.update_one({"id": pass_id}, {"$set": payload.model_dump()})
+    await log_action(admin, "pass_updated", "subscription_pass", pass_id, {"name": payload.name})
+    return SubscriptionPass(**(await db.subscription_passes.find_one({"id": pass_id})))
 
 
 @router.patch("/passes/{pass_id}/toggle", response_model=SubscriptionPass)

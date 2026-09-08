@@ -26,7 +26,7 @@ Fonts: Outfit (headings), Plus Jakarta Sans (body), JetBrains Mono (IDs, money, 
 |---|---|
 | `admins` | admin users + `password_hash` (sha256, salted constant) |
 | `admin_sessions` | session tokens, TTL index on `expires_at` |
-| `drivers` | partner profile, vehicle, `kyc_status`, `is_online`/`on_trip`, lat/lng, `documents[]`, `flags[]`, `commission_model` |
+| `drivers` | partner profile, vehicle, `kyc_status`, `is_online`/`on_trip`, lat/lng, `documents[]` (each with `type`, `number`, `status`, `file_url`, `uploaded_at`), `flags[]`, `commission_model` |
 | `riders` | customer profile, 3 balance fields, `status`, `prepaid_only` |
 | `rides` | 11-state lifecycle, `FareBreakup` sub-document, `otp` + `otp_verified`, commission/earning |
 | `fare_configs` | one per service category, **versioned** (`version` bumps on save) |
@@ -57,7 +57,15 @@ Enforced server-side in `PATCH /api/rides/{id}/state`:
 - Campaign create: positive budget/value, `ends_on >= starts_on`, percentage ≤ 100 → else **422**.
   Campaigns are created as **draft**; `expired` campaigns cannot be reactivated (**409**).
 - SOS: already-`resolved` incident cannot be acted on again (**409**).
+- Pass edit (`PUT /api/passes/{id}`): price must be > 0, at least one category, non-negative fair
+  usage → else **422**; unknown id → **404**. `active_subscribers` is never overwritten.
 - Every mutating route writes an `audit_logs` entry via `lib/auth.log_action`.
+
+## Driver KYC document scans
+`DriverDocument.file_url` points at 4 AI-generated **sample** document images (driving licence,
+vehicle RC, insurance, identity card) hosted on the Emergent static CDN and assigned in `seed.py`
+via the `DOC_IMAGES` map. There is **no real file upload pipeline** — no object storage, no
+multipart endpoint. Replacing `DOC_IMAGES` with real S3/GCS keys is the upgrade path.
 
 ## Routes → pages
 | Path | Page | What it does |
@@ -66,10 +74,10 @@ Enforced server-side in `PATCH /api/rides/{id}/state`:
 | `/` | `Dashboard.tsx` | KPI tiles, hourly ride bar chart, revenue-by-service pie, lifecycle breakdown, open-SOS queue |
 | `/fleet` | `LiveFleet.tsx` | **Leaflet** dark-cartography Kolkata map of online drivers + active trip monitor |
 | `/rides` | `Rides.tsx` | ride lookup, state/category/search filters, detail drawer with full fare breakup, lifecycle actions, refund |
-| `/drivers` | `DriversKYC.tsx` | partner roster, KYC review drawer with documents, approve/action-required/reject, force online/offline |
+| `/drivers` | `DriversKYC.tsx` | partner roster, KYC review drawer with documents, **per-document View button → image preview modal** (status + upload date + "Open full size"), approve/action-required/reject, force online/offline |
 | `/riders` | `Riders.tsx` | rider directory, 3 balances, active/restricted/blocked controls |
 | `/fares` | `FareConfig.tsx` | per-category fare breakup editor + live 8km sample preview, versioned saves |
-| `/commissions` | `CommissionPasses.tsx` | commission % per category + zero-commission pass CRUD/pause |
+| `/commissions` | `CommissionPasses.tsx` | commission % per category + zero-commission passes: create, **Edit (prefills the form; `PUT /api/passes/{id}`, preserves `active_subscribers`)**, cancel-edit, pause/activate |
 | `/campaigns` | `Campaigns.tsx` | rider/driver campaign register, create form, activate/pause/expire, budget bars |
 | `/wallet` | `WalletLedger.tsx` | 3-pool totals + immutable ledger table with pool/type/search filters |
 | `/sos` | `SOSIncidents.tsx` | incident register + safety console drawer (rider/driver/vehicle/location/action history) |

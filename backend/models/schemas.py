@@ -69,6 +69,8 @@ class DriverDocument(BaseModel):
     type: str
     number: str
     status: Literal["pending", "approved", "rejected"]
+    file_url: Optional[str] = None
+    uploaded_at: Optional[datetime] = None
 
 
 class Driver(BaseModel):
@@ -247,6 +249,15 @@ class SubscriptionPassCreate(BaseModel):
     price: float
     categories: list[str]
     fair_usage_rides: int = 0
+
+
+class SubscriptionPassUpdate(BaseModel):
+    name: str
+    duration: Literal["daily", "weekly", "monthly"]
+    price: float
+    categories: list[str]
+    fair_usage_rides: int = 0
+    status: Literal["active", "paused"]
 
 
 class FeatureFlag(BaseModel):

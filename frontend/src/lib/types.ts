@@ -39,6 +39,8 @@ export interface DriverDocument {
   type: string;
   number: string;
   status: "pending" | "approved" | "rejected";
+  file_url: string | null;
+  uploaded_at: string | null;
 }
 
 export interface Driver {

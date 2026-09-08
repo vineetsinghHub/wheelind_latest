@@ -2,11 +2,13 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { Eye } from "lucide-react";
+
 import { ApiError, apiGet, apiPatch } from "@/lib/api";
 import { EmptyState, PanelCard } from "@/components/common/MetricCard";
 import { ToneBadge } from "@/components/common/StatusBadge";
-import type { Driver } from "@/lib/types";
-import { SERVICE_CATEGORIES, inr, titleize } from "@/lib/types";
+import type { Driver, DriverDocument } from "@/lib/types";
+import { SERVICE_CATEGORIES, fmtDateTime, inr, titleize } from "@/lib/types";
 
 function errMsg(err: unknown, fallback: string) {
   if (err instanceof ApiError && err.body && typeof err.body === "object") {
@@ -22,6 +24,7 @@ export default function DriversKYC() {
   const [category, setCategory] = useState("");
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<Driver | null>(null);
+  const [viewingDoc, setViewingDoc] = useState<DriverDocument | null>(null);
 
   const params = new URLSearchParams();
   if (kyc) params.set("kyc_status", kyc);
@@ -229,13 +232,27 @@ export default function DriversKYC() {
               {selected.documents.map((doc) => (
                 <li
                   key={doc.type}
-                  className="flex items-center justify-between rounded-lg border border-[#2A303F] bg-[#161A22] px-3 py-2"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-[#2A303F] bg-[#161A22] px-3 py-2"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-[13px] text-white">{doc.type}</p>
                     <p className="wl-mono text-[11px] text-[#7E8698]">{doc.number}</p>
+                    {doc.uploaded_at ? (
+                      <p className="text-[10px] text-[#5E6575]">Uploaded {fmtDateTime(doc.uploaded_at)}</p>
+                    ) : null}
                   </div>
-                  <ToneBadge value={doc.status} />
+                  <div className="flex shrink-0 items-center gap-2">
+                    <ToneBadge value={doc.status} />
+                    <button
+                      type="button"
+                      onClick={() => setViewingDoc(doc)}
+                      data-testid={`document-view-${doc.type.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+                      className="flex items-center gap-1 rounded-md border border-[#2A303F] px-2 py-1 text-[11px] text-[#9BA1B0] transition-colors duration-150 hover:border-[#D4AF37]/60 hover:text-white"
+                    >
+                      <Eye size={12} />
+                      View
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -266,6 +283,78 @@ export default function DriversKYC() {
             >
               Force {selected.is_online ? "offline" : "online"}
             </button>
+          </div>
+        </div>
+      ) : null}
+
+      {viewingDoc ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-6"
+          onClick={() => setViewingDoc(null)}
+        >
+          <div
+            data-testid="document-viewer-modal"
+            onClick={(e) => e.stopPropagation()}
+            className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[#2E3547] bg-[#12151D]"
+          >
+            <header className="flex items-start justify-between gap-4 border-b border-[#232834] px-5 py-4">
+              <div>
+                <p className="wl-overline">Document preview</p>
+                <h3 className="mt-1 text-lg font-semibold text-white" data-testid="document-viewer-title">
+                  {viewingDoc.type}
+                </h3>
+                <p className="wl-mono mt-1 text-[11px] text-[#8E95A5]">
+                  {viewingDoc.number}
+                  {viewingDoc.uploaded_at ? ` · uploaded ${fmtDateTime(viewingDoc.uploaded_at)}` : ""}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <ToneBadge value={viewingDoc.status} testId="document-viewer-status" />
+                <button
+                  type="button"
+                  onClick={() => setViewingDoc(null)}
+                  data-testid="document-viewer-close"
+                  className="rounded-md border border-[#2A303F] px-2.5 py-1 text-xs text-[#9BA1B0] transition-colors duration-150 hover:border-[#D4AF37]/60 hover:text-white"
+                >
+                  Close
+                </button>
+              </div>
+            </header>
+
+            <div className="flex-1 overflow-auto bg-[#0A0C10] p-5">
+              {viewingDoc.file_url ? (
+                <img
+                  src={viewingDoc.file_url}
+                  alt={`${viewingDoc.type} scan`}
+                  data-testid="document-viewer-image"
+                  className="mx-auto max-h-[58vh] w-auto rounded-lg border border-[#232834] object-contain"
+                />
+              ) : (
+                <p
+                  data-testid="document-viewer-missing"
+                  className="py-16 text-center text-sm text-[#8E95A5]"
+                >
+                  No scan was uploaded for this document.
+                </p>
+              )}
+            </div>
+
+            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#232834] px-5 py-3">
+              <p className="text-[11px] text-[#7E8698]">
+                Sample scan — verify the number against the partner's original document.
+              </p>
+              {viewingDoc.file_url ? (
+                <a
+                  href={viewingDoc.file_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  data-testid="document-viewer-open-tab"
+                  className="rounded-md border border-[#2A303F] px-3 py-1.5 text-[11px] text-[#F5D061] transition-colors duration-150 hover:border-[#D4AF37]/60"
+                >
+                  Open full size
+                </a>
+              ) : null}
+            </footer>
           </div>
         </div>
       ) : null}

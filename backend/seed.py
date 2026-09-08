@@ -41,6 +41,13 @@ LAST = ["Das", "Ghosh", "Mukherjee", "Banerjee", "Chatterjee", "Roy", "Sarkar", 
 RIDER_FIRST = ["Ananya", "Priya", "Rohit", "Sneha", "Aritra", "Ishita", "Nikhil", "Riya", "Soumya", "Megha",
                "Ayan", "Trisha", "Kunal", "Payel", "Arjun", "Moumita", "Sagnik", "Ritika", "Indranil", "Sohini"]
 
+DOC_IMAGES = {
+    "Driving Licence": "https://static.prod-images.emergentagent.com/jobs/0625bba6-3e80-4a7a-835a-379effd25ac9/images/a0d0d9e6b66bcc599093e85a266706f2893d4f313321da5a2e64db5070d26b19.jpeg",
+    "Vehicle RC": "https://static.prod-images.emergentagent.com/jobs/0625bba6-3e80-4a7a-835a-379effd25ac9/images/534f87eae816fe799bc174920389ea8e4d54d051a58e3626d3711ebf2cbeced8.jpeg",
+    "Insurance": "https://static.prod-images.emergentagent.com/jobs/0625bba6-3e80-4a7a-835a-379effd25ac9/images/770cc79216f688e37758a66b86f737be2751050de4d4c412292ed138ef28ead9.jpeg",
+    "Aadhaar": "https://static.prod-images.emergentagent.com/jobs/0625bba6-3e80-4a7a-835a-379effd25ac9/images/01b47f0b3eea7a2cd3bbf449e439711219a2d51d2bca348765a809218f2d5c48.jpeg",
+}
+
 ADMINS = [
     ("admin@wheelind.in", "Wheelind@2026", "Vineet Singh", "super_admin"),
     ("fleet@wheelind.in", "Fleet@2026", "Ananya Mukherjee", "fleet_manager"),
@@ -140,13 +147,21 @@ async def main() -> None:
             last_heartbeat=utcnow() if online else None,
             documents=[
                 DriverDocument(type="Driving Licence", number=f"WB-{random.randint(10,99)}-{random.randint(100000,999999)}",
-                               status="approved" if kyc == "approved" else "pending"),
+                               status="approved" if kyc == "approved" else "pending",
+                               file_url=DOC_IMAGES["Driving Licence"],
+                               uploaded_at=utcnow() - timedelta(days=random.randint(2, 90))),
                 DriverDocument(type="Vehicle RC", number=f"RC{random.randint(100000,999999)}",
-                               status="approved" if kyc == "approved" else "pending"),
+                               status="approved" if kyc == "approved" else "pending",
+                               file_url=DOC_IMAGES["Vehicle RC"],
+                               uploaded_at=utcnow() - timedelta(days=random.randint(2, 90))),
                 DriverDocument(type="Insurance", number=f"INS{random.randint(100000,999999)}",
-                               status="approved" if kyc == "approved" else "pending"),
+                               status="approved" if kyc == "approved" else "pending",
+                               file_url=DOC_IMAGES["Insurance"],
+                               uploaded_at=utcnow() - timedelta(days=random.randint(2, 90))),
                 DriverDocument(type="Aadhaar", number=f"XXXX-XXXX-{random.randint(1000,9999)}",
-                               status="approved" if kyc == "approved" else "pending"),
+                               status="approved" if kyc == "approved" else "pending",
+                               file_url=DOC_IMAGES["Aadhaar"],
+                               uploaded_at=utcnow() - timedelta(days=random.randint(2, 90))),
             ],
             flags=(["gps_anomaly"] if random.random() < 0.08 else []) + (["cash_dispute"] if random.random() < 0.06 else []),
             created_at=utcnow() - timedelta(days=random.randint(5, 400)),
