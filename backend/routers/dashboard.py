@@ -49,7 +49,7 @@ async def dashboard_stats(_: AdminUser = Depends(current_admin)):
 
     # Document expiry rollup — server-anchored, same helper the alerts endpoint uses.
     all_drivers = await db.drivers.find({}, {"documents": 1}).to_list(1000)
-    expiring = expired = 0
+    expiring = expired = resubmitted = 0
     for d in all_drivers:
         for doc in d.get("documents", []):
             state = expiry_status(doc.get("expires_on"))
@@ -57,6 +57,8 @@ async def dashboard_stats(_: AdminUser = Depends(current_admin)):
                 expiring += 1
             elif state == "expired":
                 expired += 1
+            if doc.get("resubmitted_at") and doc.get("status") == "pending":
+                resubmitted += 1
 
     riders = await db.riders.count_documents({})
     sos = await db.sos_incidents.count_documents({"status": {"$in": ["open", "acknowledged", "escalated"]}})
@@ -76,6 +78,7 @@ async def dashboard_stats(_: AdminUser = Depends(current_admin)):
         live_rides=live,
         expiring_documents=expiring,
         expired_documents=expired,
+        resubmitted_documents=resubmitted,
         hourly_rides=hourly_points,
         category_split=splits,
         state_breakdown=state_points,

@@ -32,6 +32,7 @@ export interface DashboardStats {
   live_rides: number;
   expiring_documents: number;
   expired_documents: number;
+  resubmitted_documents: number;
   hourly_rides: SeriesPoint[];
   category_split: CategorySplit[];
   state_breakdown: SeriesPoint[];
@@ -45,6 +46,9 @@ export interface DriverDocument {
   uploaded_at: string | null;
   expires_on: string | null;
   reject_reason: string | null;
+  version: number;
+  resubmitted_at: string | null;
+  previous_reject_reason: string | null;
   expiry_status: "expired" | "expiring_soon" | "valid" | null;
   days_to_expiry: number | null;
 }

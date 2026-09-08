@@ -232,7 +232,7 @@ export default function Dashboard() {
           sub={
             offline
               ? undefined
-              : `${stats.expired_documents} expired · ${stats.expiring_documents} within 30 days`
+              : `${stats.expired_documents} expired · ${stats.expiring_documents} within 30 days · ${stats.resubmitted_documents} re-submitted`
           }
           icon={<CalendarClock size={16} />}
           accent="#EF4444"

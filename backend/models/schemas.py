@@ -61,6 +61,7 @@ class DashboardStats(BaseModel):
     live_rides: int
     expiring_documents: int
     expired_documents: int
+    resubmitted_documents: int
     hourly_rides: list[SeriesPoint]
     category_split: list[CategorySplit]
     state_breakdown: list[SeriesPoint]
@@ -75,9 +76,20 @@ class DriverDocument(BaseModel):
     uploaded_at: Optional[datetime] = None
     expires_on: Optional[datetime] = None
     reject_reason: Optional[str] = None
+    # Re-upload trail: a partner replacing a rejected scan bumps version and keeps the old reason as reviewer context.
+    version: int = 1
+    resubmitted_at: Optional[datetime] = None
+    previous_reject_reason: Optional[str] = None
     # Server-computed on read (never stored): expired | expiring_soon | valid | None
     expiry_status: Optional[str] = None
     days_to_expiry: Optional[int] = None
+
+
+class DocumentReupload(BaseModel):
+    """A fresh scan submitted by the partner for a previously rejected document."""
+    number: Optional[str] = None
+    expires_on: Optional[datetime] = None
+    file_url: Optional[str] = None
 
 
 class DocumentDecision(BaseModel):

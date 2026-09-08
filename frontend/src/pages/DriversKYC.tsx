@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import { Eye } from "lucide-react";
 
-import { ApiError, apiGet, apiPatch } from "@/lib/api";
+import { ApiError, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { EmptyState, PanelCard } from "@/components/common/MetricCard";
 import { ExpiryBadge, ToneBadge } from "@/components/common/StatusBadge";
 import type { Driver, DriverDocument } from "@/lib/types";
@@ -24,6 +24,10 @@ export default function DriversKYC() {
   const [category, setCategory] = useState("");
   const [q, setQ] = useState("");
   const [docAlert, setDocAlert] = useState("");
+  const [resubmitted, setResubmitted] = useState(false);
+  const [reuploadType, setReuploadType] = useState<string | null>(null);
+  const [reuploadNumber, setReuploadNumber] = useState("");
+  const [reuploadExpiry, setReuploadExpiry] = useState("");
   const [selected, setSelected] = useState<Driver | null>(null);
   const [viewingDoc, setViewingDoc] = useState<DriverDocument | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -34,15 +38,37 @@ export default function DriversKYC() {
   if (category) params.set("category", category);
   if (q) params.set("q", q);
   if (docAlert) params.set("doc_alert", docAlert);
+  if (resubmitted) params.set("resubmitted", "true");
   const qs = params.toString();
 
   const { data: drivers, isError } = useQuery({
-    queryKey: ["drivers", kyc, category, q, docAlert],
+    queryKey: ["drivers", kyc, category, q, docAlert, resubmitted],
     queryFn: () => apiGet<Driver[]>(`/drivers${qs ? `?${qs}` : ""}`),
   });
 
   // Keep the open drawer in sync with refetched data so badges update after a decision.
   const live = selected ? (drivers ?? []).find((d) => d.id === selected.id) ?? selected : null;
+
+  const reupload = useMutation({
+    mutationFn: (v: { id: string; docType: string }) =>
+      apiPost<Driver>(`/drivers/${v.id}/documents/${encodeURIComponent(v.docType)}/reupload`, {
+        number: reuploadNumber.trim() || null,
+        expires_on: reuploadExpiry ? new Date(reuploadExpiry).toISOString() : null,
+        file_url: null,
+      }),
+    onSuccess: (d, v) => {
+      toast.success(`${v.docType} re-submitted — back in the review queue`);
+      setSelected(d);
+      setReuploadType(null);
+      setReuploadNumber("");
+      setReuploadExpiry("");
+      setViewingDoc(d.documents.find((x) => x.type === v.docType) ?? null);
+      qc.invalidateQueries({ queryKey: ["drivers"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["document-alerts"] });
+    },
+    onError: (e) => toast.error(errMsg(e, "Re-upload failed")),
+  });
 
   const decideDoc = useMutation({
     mutationFn: (v: { id: string; docType: string; status: string; reason: string }) =>
@@ -146,6 +172,18 @@ export default function DriversKYC() {
           <option value="expiring_soon">Expiring within 30 days</option>
           <option value="expired">Already expired</option>
         </select>
+        <button
+          type="button"
+          onClick={() => setResubmitted((v) => !v)}
+          data-testid="drivers-resubmitted-filter"
+          className={`rounded-lg border px-3.5 py-2 text-[12px] transition-colors duration-150 ${
+            resubmitted
+              ? "border-[#634E1D] bg-[#2A2312] font-semibold text-[#F5D061]"
+              : "border-[#2A303F] text-[#9BA1B0] hover:text-white"
+          }`}
+        >
+          Re-submitted only
+        </button>
       </div>
 
       <PanelCard title="Partner roster" testId="drivers-table-panel">
@@ -276,6 +314,14 @@ export default function DriversKYC() {
                     <div className="min-w-0">
                       <p className="text-[13px] text-white">{doc.type}</p>
                       <p className="wl-mono text-[11px] text-[#7E8698]">{doc.number}</p>
+                      {doc.resubmitted_at ? (
+                        <p
+                          data-testid={`document-resubmitted-${doc.type.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+                          className="mt-0.5 text-[10px] font-semibold text-[#F5D061]"
+                        >
+                          Re-submitted v{doc.version} · {fmtDateTime(doc.resubmitted_at)}
+                        </p>
+                      ) : null}
                       {doc.expires_on ? (
                         <p className="text-[10px] text-[#5E6575]">Valid till {fmtDate(doc.expires_on)}</p>
                       ) : doc.uploaded_at ? (
@@ -308,6 +354,14 @@ export default function DriversKYC() {
                       className="mt-2 rounded border border-[#7F1D1D] bg-[#2B1114] px-2 py-1 text-[11px] text-[#FF6B6B]"
                     >
                       Rejected: {doc.reject_reason}
+                    </p>
+                  ) : null}
+                  {doc.previous_reject_reason && !doc.reject_reason ? (
+                    <p
+                      data-testid={`document-prev-reason-${doc.type.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+                      className="mt-2 rounded border border-[#634E1D] bg-[#2A2312] px-2 py-1 text-[11px] text-[#F5D061]"
+                    >
+                      Previously rejected: {doc.previous_reject_reason}
                     </p>
                   ) : null}
                 </li>
@@ -418,7 +472,63 @@ export default function DriversKYC() {
                 </p>
               ) : null}
 
-              {rejectingType === viewingDoc.type ? (
+              {reuploadType === viewingDoc.type ? (
+                <div className="space-y-2" data-testid="document-reupload-form">
+                  <p className="text-[11px] text-[#8E95A5]">
+                    Simulates the partner submitting a fresh scan from the driver app. The document
+                    returns to <span className="text-[#F5D061]">Pending</span> for review.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-[10px] text-[#9BA1B0]">
+                        New document number (optional)
+                      </label>
+                      <input
+                        value={reuploadNumber}
+                        onChange={(e) => setReuploadNumber(e.target.value)}
+                        placeholder={viewingDoc.number}
+                        data-testid="document-reupload-number-input"
+                        className="wl-mono w-full rounded-lg border border-[#2A303F] bg-[#11141A] px-2.5 py-1.5 text-[12px] text-white outline-none placeholder:text-[#5E6575] focus:border-[#D4AF37]"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[10px] text-[#9BA1B0]">
+                        New expiry (optional)
+                      </label>
+                      <input
+                        type="date"
+                        value={reuploadExpiry}
+                        onChange={(e) => setReuploadExpiry(e.target.value)}
+                        data-testid="document-reupload-expiry-input"
+                        className="wl-mono w-full rounded-lg border border-[#2A303F] bg-[#11141A] px-2.5 py-1.5 text-[12px] text-white outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={reupload.isPending}
+                      onClick={() => live && reupload.mutate({ id: live.id, docType: viewingDoc.type })}
+                      data-testid="document-reupload-confirm"
+                      className="rounded-md bg-[#D4AF37] px-3 py-1.5 text-[11px] font-semibold text-[#090A0C] transition-colors duration-150 hover:bg-[#E5C158] disabled:opacity-40"
+                    >
+                      {reupload.isPending ? "Submitting…" : "Submit fresh scan"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReuploadType(null);
+                        setReuploadNumber("");
+                        setReuploadExpiry("");
+                      }}
+                      data-testid="document-reupload-cancel"
+                      className="rounded-md border border-[#2A303F] px-3 py-1.5 text-[11px] text-[#9BA1B0] transition-colors duration-150 hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : rejectingType === viewingDoc.type ? (
                 <div className="space-y-2" data-testid="document-reject-form">
                   <label className="block text-[11px] font-medium text-[#9BA1B0]">
                     Why is this document being rejected?
@@ -523,6 +633,21 @@ export default function DriversKYC() {
                     >
                       Reject document
                     </button>
+                    {viewingDoc.status === "rejected" ? (
+                      <button
+                        type="button"
+                        disabled={reupload.isPending}
+                        onClick={() => {
+                          setReuploadType(viewingDoc.type);
+                          setReuploadNumber("");
+                          setReuploadExpiry("");
+                        }}
+                        data-testid="document-reupload-button"
+                        className="rounded-md border border-[#634E1D] bg-[#2A2312] px-3 py-1.5 text-[11px] font-semibold text-[#F5D061] transition-colors duration-150 hover:border-[#D4AF37] disabled:opacity-40"
+                      >
+                        Partner re-upload
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               )}

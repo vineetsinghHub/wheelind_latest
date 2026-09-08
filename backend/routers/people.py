@@ -6,8 +6,8 @@ from lib.auth import current_admin, log_action
 from lib.db import db
 from lib.kyc import EXPIRING_SOON_DAYS, annotate_documents, expiry_status, days_left, rollup_kyc_status
 from models.schemas import (
-    AdminUser, DocumentAlert, DocumentDecision, Driver, DriverOnlineUpdate, KycDecision,
-    Rider, RiderStatusUpdate, utcnow,
+    AdminUser, DocumentAlert, DocumentDecision, DocumentReupload, Driver, DriverOnlineUpdate,
+    KycDecision, Rider, RiderStatusUpdate, utcnow,
 )
 
 router = APIRouter(tags=["people"])
@@ -19,6 +19,7 @@ async def list_drivers(
     category: Optional[str] = None,
     online: Optional[bool] = None,
     doc_alert: Optional[str] = None,
+    resubmitted: Optional[bool] = None,
     q: Optional[str] = None,
     _: AdminUser = Depends(current_admin),
 ):
@@ -46,6 +47,9 @@ async def list_drivers(
             d for d in drivers
             if any(doc.expiry_status in ("expired", "expiring_soon") for doc in d.documents)
         ]
+
+    if resubmitted:
+        drivers = [d for d in drivers if any(doc.resubmitted_at is not None for doc in d.documents)]
     return drivers
 
 
@@ -80,6 +84,58 @@ async def get_driver(driver_id: str, _: AdminUser = Depends(current_admin)):
     if not doc:
         raise HTTPException(status_code=404, detail="Driver not found")
     return Driver(**annotate_documents(doc))
+
+
+@router.post("/drivers/{driver_id}/documents/{doc_type}/reupload", response_model=Driver)
+async def reupload_document(
+    driver_id: str, doc_type: str, payload: DocumentReupload, admin: AdminUser = Depends(current_admin)
+):
+    """Partner submits a fresh scan for a REJECTED document; it returns to the review queue.
+
+    Only a rejected document can be replaced (409 otherwise). The old rejection reason is
+    retained as `previous_reject_reason` so the next reviewer sees why it bounced.
+    """
+    driver = await db.drivers.find_one({"id": driver_id})
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+
+    documents = list(driver.get("documents", []))
+    target = next((d for d in documents if d["type"].lower() == doc_type.lower()), None)
+    if not target:
+        raise HTTPException(status_code=404, detail=f"Document '{doc_type}' not found for this driver")
+    if target.get("status") != "rejected":
+        raise HTTPException(
+            status_code=409,
+            detail="Only a rejected document can be re-uploaded — this one is "
+                   f"{target.get('status')}",
+        )
+
+    now = utcnow()
+    for d in documents:
+        if d["type"].lower() == doc_type.lower():
+            d["status"] = "pending"
+            d["previous_reject_reason"] = d.get("reject_reason")
+            d["reject_reason"] = None
+            d["uploaded_at"] = now
+            d["resubmitted_at"] = now
+            d["version"] = int(d.get("version", 1)) + 1
+            if payload.number:
+                d["number"] = payload.number
+            if payload.expires_on:
+                d["expires_on"] = payload.expires_on
+            if payload.file_url:
+                d["file_url"] = payload.file_url
+
+    new_kyc = rollup_kyc_status(documents, driver["kyc_status"])
+    await db.drivers.update_one(
+        {"id": driver_id}, {"$set": {"documents": documents, "kyc_status": new_kyc}}
+    )
+    await log_action(
+        admin, "document_reuploaded", "driver", driver_id,
+        {"document": target["type"], "kyc_status": new_kyc},
+    )
+    updated = await db.drivers.find_one({"id": driver_id})
+    return Driver(**annotate_documents(updated))
 
 
 @router.patch("/drivers/{driver_id}/documents/{doc_type}", response_model=Driver)

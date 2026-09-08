@@ -75,6 +75,21 @@ multipart endpoint. Replacing `DOC_IMAGES` with real S3/GCS keys is the upgrade 
   approved → `approved`; otherwise `pending`. The bulk whole-file decision buttons still exist.
 - Approving a previously rejected document clears its `reject_reason`.
 
+**Document re-upload** — `POST /api/drivers/{id}/documents/{doc_type}/reupload`:
+- Simulates the partner submitting a fresh scan from the driver app. **Only a `rejected` document
+  can be replaced** — 409 otherwise; unknown doc/driver → 404.
+- Resets `status` to `pending`, clears `reject_reason`, moves the old reason to
+  `previous_reject_reason` (reviewer context), bumps `version`, and stamps `resubmitted_at` +
+  `uploaded_at`. Optional body fields `number`, `expires_on`, `file_url` replace those values.
+- The KYC rollup then pulls the driver back into the **review queue** (`pending`, or
+  `action_required` if another document is still rejected). Other documents are never touched.
+- Surfaces: "Re-submitted v2 · <date>" marker and "Previously rejected: …" chip on the document row,
+  a **Partner re-upload** button that appears only on rejected documents, a **Re-submitted only**
+  roster filter (`GET /api/drivers?resubmitted=true`), and `DashboardStats.resubmitted_documents`
+  (counts only re-submitted docs *still pending review*, so it reads as a work queue).
+- **This is an admin-side simulation** — there is no driver app and no upload pipeline, so the new
+  scan reuses the existing sample image unless a `file_url` is supplied.
+
 **Expiry alerts** — only `Driving Licence` and `Insurance` carry `expires_on` (`EXPIRING_TYPES`).
 `lib/kyc.py` computes, server-side on every read (never stored), `expiry_status`
 (`expired` | `expiring_soon` | `valid` | `null`) and `days_to_expiry`, using a 30-day
@@ -95,7 +110,7 @@ multipart endpoint. Replacing `DOC_IMAGES` with real S3/GCS keys is the upgrade 
 | `/` | `Dashboard.tsx` | KPI tiles, hourly ride bar chart, revenue-by-service pie, lifecycle breakdown, open-SOS queue, **document renewal alerts table** |
 | `/fleet` | `LiveFleet.tsx` | **Leaflet** dark-cartography Kolkata map of online drivers + active trip monitor |
 | `/rides` | `Rides.tsx` | ride lookup, state/category/search filters, detail drawer with full fare breakup, lifecycle actions, refund |
-| `/drivers` | `DriversKYC.tsx` | partner roster, expiry-state filter, KYC review drawer, per-document **View → preview modal** with **Approve/Reject-this-document** (reason presets + free text) and expiry badges, whole-file KYC decision, force online/offline |
+| `/drivers` | `DriversKYC.tsx` | partner roster, expiry-state + re-submitted filters, KYC review drawer, per-document **View → preview modal** with **Approve / Reject / Partner re-upload**, expiry + re-submission badges, whole-file KYC decision, force online/offline |
 | `/riders` | `Riders.tsx` | rider directory, 3 balances, active/restricted/blocked controls |
 | `/fares` | `FareConfig.tsx` | per-category fare breakup editor + live 8km sample preview, versioned saves |
 | `/commissions` | `CommissionPasses.tsx` | commission % per category + zero-commission passes: create, **Edit (prefills the form; `PUT /api/passes/{id}`, preserves `active_subscribers`)**, cancel-edit, pause/activate |
