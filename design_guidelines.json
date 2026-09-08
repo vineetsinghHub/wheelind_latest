@@ -1,0 +1,250 @@
+{
+  "theme": "dark",
+  "archetype": "THE PERFORMANCE PRO / TACTICAL LUXURY",
+  "brand": {
+    "name": "Wheelind",
+    "slogan": "Your ride, our pride",
+    "city": "Kolkata, India",
+    "pillars": ["Safe Rides", "Reliable Service", "Customer First"],
+    "tone": "Mission-critical operations, tactical precision, premium matte black with metallic gold accents, extreme operational legibility."
+  },
+  "typography": {
+    "font_family_heading": "Outfit, sans-serif",
+    "font_family_body": "Plus Jakarta Sans, sans-serif",
+    "font_family_mono": "JetBrains Mono, monospace",
+    "fontsource_imports": [
+      "@import \"@fontsource-variable/outfit\";",
+      "@import \"@fontsource-variable/plus-jakarta-sans\";",
+      "@import \"@fontsource-variable/jetbrains-mono\";"
+    ],
+    "scale_px": {
+      "display": 52,
+      "h1": 36,
+      "h2": 28,
+      "h3": 20,
+      "h4": 16,
+      "body": 14,
+      "caption": 12
+    },
+    "rules": {
+      "headings": "Outfit Variable with tracking-tight, font-semibold or font-bold. Never use Inter for headings.",
+      "body": "Plus Jakarta Sans Variable, font-normal, tracking-normal, high readability.",
+      "numbers_and_codes": "JetBrains Mono Variable for ride IDs, OTP, coordinates, timestamps, ledger transaction IDs, and currency values.",
+      "labels_overlines": "Uppercase, text-[11px], tracking-[0.15em], font-semibold, text-[#C5A25D]."
+    }
+  },
+  "colors": {
+    "surfaces": [
+      {
+        "name": "page",
+        "kind": "solid",
+        "bg": "#090A0C",
+        "on_bg": "#F4F4F6",
+        "on_bg_muted": "#9BA1B0",
+        "roles": {
+          "border": "#1E222B",
+          "link": "#D4AF37",
+          "error": "#EF4444",
+          "success": "#10B981",
+          "warning": "#F59E0B",
+          "info": "#3B82F6"
+        }
+      },
+      {
+        "name": "panel",
+        "kind": "solid",
+        "bg": "#11141A",
+        "on_bg": "#F4F4F6",
+        "on_bg_muted": "#8E95A5",
+        "roles": {
+          "border": "#232834",
+          "hover_bg": "#171B24",
+          "active_bg": "#1D2330",
+          "gold_border": "#D4AF37"
+        }
+      },
+      {
+        "name": "card_elevated",
+        "kind": "solid",
+        "bg": "#161A22",
+        "on_bg": "#FFFFFF",
+        "on_bg_muted": "#9BA1B0",
+        "roles": {
+          "border": "#2A303F",
+          "gold_subtle": "rgba(212, 175, 55, 0.15)"
+        }
+      },
+      {
+        "name": "sidebar",
+        "kind": "solid",
+        "bg": "#0D0F14",
+        "on_bg": "#EDEDF0",
+        "on_bg_muted": "#7E8698",
+        "roles": {
+          "active_item_bg": "#1C1F28",
+          "active_gold_bar": "#D4AF37",
+          "border_r": "#1B1F2A"
+        }
+      },
+      {
+        "name": "modal_dialog",
+        "kind": "solid",
+        "bg": "#12151D",
+        "on_bg": "#F4F4F6",
+        "on_bg_muted": "#949BAE",
+        "roles": {
+          "border": "#2E3547"
+        }
+      },
+      {
+        "name": "badge_gold",
+        "kind": "solid",
+        "bg": "#2A2312",
+        "on_bg": "#F5D061",
+        "on_bg_muted": "#D4AF37",
+        "roles": {
+          "border": "#634E1D"
+        }
+      },
+      {
+        "name": "badge_sos_critical",
+        "kind": "solid",
+        "bg": "#2B1114",
+        "on_bg": "#FF6B6B",
+        "on_bg_muted": "#EF4444",
+        "roles": {
+          "border": "#7F1D1D"
+        }
+      },
+      {
+        "name": "badge_active",
+        "kind": "solid",
+        "bg": "#0D241A",
+        "on_bg": "#34D399",
+        "on_bg_muted": "#10B981",
+        "roles": {
+          "border": "#064E3B"
+        }
+      },
+      {
+        "name": "login_hero_side",
+        "kind": "image",
+        "contrast_against": "#0A0B0E",
+        "guarantee": "scrim: linear-gradient(180deg, rgba(9,10,12,0.85) 0%, rgba(9,10,12,0.95) 100%)",
+        "on_bg": "#FFFFFF",
+        "on_bg_muted": "#C2C7D4",
+        "roles": {
+          "gold_accent": "#D4AF37",
+          "gold_glow": "rgba(212, 175, 55, 0.3)"
+        }
+      }
+    ],
+    "accent": "#D4AF37",
+    "on_accent": "#090A0C",
+    "accent_hover": "#E5C158",
+    "accent_muted": "#8A7326",
+    "accent_subtle_bg": "rgba(212, 175, 55, 0.08)",
+    "status_colors": {
+      "draft": "#64748B",
+      "searching": "#F59E0B",
+      "driver_assigned": "#3B82F6",
+      "driver_arriving": "#8B5CF6",
+      "waiting_at_pickup": "#EC4899",
+      "otp_pending": "#F97316",
+      "in_progress": "#10B981",
+      "completed": "#059669",
+      "cancelled": "#6B7280",
+      "expired": "#9CA3AF",
+      "disputed": "#EF4444",
+      "sos_alert": "#DC2626"
+    }
+  },
+  "entry_surfaces": {
+    "/login": "branded split login — deep onyx backdrop with gold-embossed brand credentials & Kolkata fleet visual left, authentication control card with pre-filled seed demo pills right",
+    "/": "operations god's eye dashboard — real-time Kolkata KPI ribbon top, live interactive dispatch fleet map with active driver clusters & trip state filter controls center-left, live critical incident & SOS dispatch queue right"
+  },
+  "component_paths": {
+    "login_page": "/app/frontend/src/pages/Login.tsx",
+    "dashboard_page": "/app/frontend/src/pages/Dashboard.tsx",
+    "live_fleet_map": "/app/frontend/src/pages/LiveFleet.tsx",
+    "rides_management": "/app/frontend/src/pages/Rides.tsx",
+    "drivers_kyc": "/app/frontend/src/pages/DriversKYC.tsx",
+    "riders_directory": "/app/frontend/src/pages/Riders.tsx",
+    "fare_config": "/app/frontend/src/pages/FareConfig.tsx",
+    "commission_passes": "/app/frontend/src/pages/CommissionPasses.tsx",
+    "campaigns_offers": "/app/frontend/src/pages/Campaigns.tsx",
+    "wallet_ledger": "/app/frontend/src/pages/WalletLedger.tsx",
+    "sos_dashboard": "/app/frontend/src/pages/SOSIncidents.tsx",
+    "audit_logs": "/app/frontend/src/pages/AuditLogs.tsx",
+    "feature_flags": "/app/frontend/src/pages/FeatureFlags.tsx",
+    "admin_layout": "/app/frontend/src/components/layout/AdminLayout.tsx",
+    "top_navbar": "/app/frontend/src/components/layout/TopNavbar.tsx",
+    "sidebar": "/app/frontend/src/components/layout/Sidebar.tsx",
+    "metric_card": "/app/frontend/src/components/common/MetricCard.tsx",
+    "status_badge": "/app/frontend/src/components/common/StatusBadge.tsx"
+  },
+  "image_urls": {
+    "auth_banner_taxi": {
+      "url": "https://images.unsplash.com/photo-1695141988189-a235ffa40bbb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHwyfHxrb2xrYXRhJTIweWVsbG93JTIwdGF4aSUyMHRyYW5zcG9ydHxlbnwwfHx8fDE3ODg4OTA4MTZ8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Iconic Kolkata Yellow Taxi on the road - used in login branding side panel with dark gradient scrim",
+      "category": "branding_auth"
+    },
+    "city_skyline_night": {
+      "url": "https://images.unsplash.com/photo-1788104425919-6f195860ed28?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwzfHxrb2xrYXRhJTIwaG93cmFoJTIwYnJpZGdlJTIwY2l0eXxlbnwwfHx8fDE3ODg4OTA4MTZ8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Howrah Bridge Kolkata illuminated at night over Hooghly River - used in City Hub Selector & Kolkata Fleet context",
+      "category": "city_context"
+    },
+    "driver_avatar_sample": {
+      "url": "https://images.unsplash.com/photo-1777637802987-fb30ac38e58a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHw0fHxrb2xrYXRhJTIweWVsbG93JTIwdGF4aSUyMHRyYW5zcG9ydHxlbnwwfHx8fDE3ODg4OTA4MTZ8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Kolkata professional driver portrait for KYC Verification document modal",
+      "category": "kyc_verification"
+    }
+  },
+  "layouts_and_grids": {
+    "sidebar_width": "w-64 flex-shrink-0 (collapsible to w-18 icon mode on smaller desktop)",
+    "topbar_height": "h-16 sticky top-0 z-40 bg-[#0D0F14]/90 backdrop-blur-md border-b border-[#1E222B]",
+    "content_padding": "p-6 lg:p-8 space-y-6 max-w-[1720px] mx-auto",
+    "kpi_grid": "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6",
+    "dashboard_split": "grid grid-cols-1 lg:grid-cols-12 gap-6 items-start",
+    "fleet_map_ratio": "col-span-12 lg:col-span-8 h-[640px] rounded-xl overflow-hidden border border-[#232834]",
+    "dispatch_feed_ratio": "col-span-12 lg:col-span-4 h-[640px] flex flex-col rounded-xl border border-[#232834] bg-[#11141A]",
+    "table_layout": "rounded-xl border border-[#232834] bg-[#11141A] overflow-hidden shadow-2xl"
+  },
+  "motion": {
+    "subtle_hover": "transition-all duration-150 ease-out hover:border-[#D4AF37]/50 hover:bg-[#161A22]",
+    "button_press": "active:scale-[0.98] transition-transform duration-100",
+    "drawer_transition": "spring physics with damping 25, stiffness 300 via Sheet component",
+    "sos_pulse": "animate-pulse ring-2 ring-red-500/50 bg-red-950/40 text-red-400",
+    "live_indicator_beacon": "relative flex h-2.5 w-2.5 before:absolute before:inline-flex before:h-full before:w-full before:animate-ping before:rounded-full before:bg-emerald-400 before:opacity-75 bg-emerald-500 rounded-full"
+  },
+  "accessibility": {
+    "wcag_compliance": "WCAG AA compliant (4.5:1 text ratio). Pure white #FFFFFF and soft white #F4F4F6 against #090A0C yields 18.2:1 contrast. Metallic gold #D4AF37 against #090A0C yields 8.1:1 contrast.",
+    "testing_attributes": "All interactive elements (buttons, inputs, filters, tabs, status dropdowns, modal triggers, export buttons) MUST contain descriptive kebab-case `data-testid` attributes.",
+    "focus_states": "focus-visible:ring-2 focus-visible:ring-[#D4AF37] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] outline-none",
+    "keyboard_nav": "Full tab navigation through table rows, filter bars, quick-action sheets, and modal forms."
+  },
+  "third_party_libraries_recommended": [
+    "leaflet and @types/leaflet (or MapLibre/custom Canvas engine) for Kolkata live fleet interactive map pinning Park Street, Salt Lake Sector V, Howrah, Airport, New Town, Esplanade",
+    "recharts (already preinstalled in template) for Hourly Ride Volume, Revenue Split by Service, Driver Online vs Busy charts, Cancellation Root Causes",
+    "lucide-react (preinstalled) for clean geometric operational icons"
+  ],
+  "instructions_to_main_agent": [
+    "Follow the matte black + metallic gold aesthetic strictly: Background #090A0C, panel #11141A, gold accent #D4AF37. Never use bright saturated tech blues or generic AI purples (#7351B7 is strictly forbidden).",
+    "Incorporate all Kolkata-specific operational context: 8 Service categories (Bike, Auto, Cab, Sedan, XL, Rentals, Outstation, Parcel) with Kolkata hub locations (Park Street, Salt Lake Sec V, Howrah Station, CCU Airport, New Town, Ballygunge, Esplanade, Jadavpur).",
+    "Implement the 11-stage ride lifecycle state machine with dedicated badge colors and drawer actions: draft, searching, driver_assigned, driver_arriving, waiting_at_pickup, otp_pending, in_progress, completed, cancelled, expired, disputed.",
+    "Seed high-quality, realistic Kolkata ride data: 3000 daily rides simulation, 40+ active driver profiles with KYC statuses (Pending, Approved, Rejected, Action Required), fare slabs for each service type, and realistic SOS incidents.",
+    "Build the Wallet Ledger screen with 3 distinct balance pools: User-Funded (Cash/UPI), Promotional Credits, and Cashback Balance, with an immutable double-entry style ledger table.",
+    "Ensure Fare Configuration allows setting Base Fare, Min Fare, Per KM, Per Minute, Waiting Charge, Cancellation Fee, Surge Multiplier ceiling, and Night Charge (11 PM - 5 AM).",
+    "Ensure Commission Configuration supports both percentage commission per category AND Zero-Commission Subscription Passes (Daily, Weekly, Monthly passes).",
+    "Include quick-login buttons on the login page for Instant Demo Access (Super Admin, Fleet Manager, Operations Lead) with pre-filled credentials.",
+    "Provide clear export capability (CSV / Excel download simulated) and robust filtering by date range, service category, driver, rider, status, and zone.",
+    "All interactive and key informational elements MUST include `data-testid` attributes."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Avoid generic 'AI Slop' — use deliberate, high-density layouts designed for 24/7 mission-critical ride-hailing dispatch operations.",
+    "Do not apply `transition: all`. Use specific transitions like `transition-colors duration-150` or `transition-transform duration-100`.",
+    "Keep map interactions responsive and clear. In dark mode, style the map tiles with sleek dark cartography (e.g. CartoDB Dark Matter / Alidade Smooth Dark) so gold and green fleet markers stand out sharply.",
+    "Every badge, chip, and interactive row must have explicit text contrast against its own background container.",
+    "Use sonner for notifications (KYC approved, Fare saved, Pass created, SOS acknowledged, Ride cancelled/refunded)."
+  ]
+}
