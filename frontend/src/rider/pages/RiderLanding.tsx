@@ -8,6 +8,7 @@ import {
   CarFront,
   CarTaxiFront,
   Clock,
+  Download,
   Gift,
   HeartHandshake,
   MapPin,
@@ -106,7 +107,7 @@ export default function RiderLanding() {
     retry: false,
   });
   const signedIn = Boolean(me?.rider);
-  const bookHref = signedIn ? "/ride" : "/welcome";
+  const bookHref = "/ride";
 
   return (
     <div className="min-h-screen bg-[#090A0C] font-sans text-[#F4F4F6]" data-testid="rider-landing">
@@ -138,8 +139,8 @@ export default function RiderLanding() {
             data-testid="landing-nav-cta"
             className="group flex items-center gap-1.5 rounded-full bg-[#D4AF37] px-4 py-2 text-[13px] font-semibold text-[#0B0C10] transition-colors duration-150 hover:bg-[#E5C158]"
           >
-            {signedIn ? "Book a ride" : "Sign in"}
-            <ArrowRight size={14} className="transition-transform duration-200 group-hover:translate-x-0.5" />
+            <Download size={14} />
+            Download app
           </Link>
         </div>
       </header>
@@ -269,13 +270,11 @@ export default function RiderLanding() {
         </h2>
 
         <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {SERVICES.map(({ icon: Icon, name, blurb }, i) => (
+          {SERVICES.map(({ icon: Icon, name, blurb }) => (
             <div
               key={name}
               data-testid={`landing-service-${name.toLowerCase()}`}
-              className={`group rounded-2xl border border-[#232834] bg-[#11141A] p-5 transition-[transform,border-color,background-color] duration-200 hover:-translate-y-1 hover:border-[#D4AF37]/45 hover:bg-[#161A22] ${
-                i % 3 === 0 ? "lg:mt-4" : ""
-              }`}
+              className={`group rounded-2xl border border-[#232834] bg-[#11141A] p-5 transition-[transform,border-color,background-color] duration-200 hover:-translate-y-1 hover:border-[#D4AF37]/45 hover:bg-[#161A22]`}
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1D2330] text-[#F5D061] transition-colors duration-200 group-hover:bg-[#D4AF37] group-hover:text-[#0B0C10]">
                 <Icon size={19} />
@@ -391,7 +390,7 @@ export default function RiderLanding() {
               a tap, and keep cashback, promo and your own money tracked separately in a real ledger.
             </p>
             <Link
-              to={signedIn ? "/wallet" : "/welcome"}
+              to={signedIn ? "/wallet" : "/ride"}
               data-testid="landing-wallet-cta"
               className="rounded-xl border border-[#2A303F] px-4 py-2.5 text-[13px] font-semibold text-[#F5D061] transition-colors duration-150 hover:border-[#D4AF37]/60"
             >
@@ -476,6 +475,48 @@ export default function RiderLanding() {
                 <p className="mt-2 text-[13px] leading-relaxed text-[#8E95A5]">{f.a}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- download ---------- */}
+      <section id="download" className="mx-auto max-w-6xl scroll-mt-20 px-5 pb-4">
+        <div className="grid gap-6 rounded-3xl border border-[#232834] bg-[#11141A] p-8 md:grid-cols-[1.1fr_0.9fr] md:items-center">
+          <div>
+            <Overline>Get the app</Overline>
+            <h2 className="font-heading mt-2 text-[28px] leading-tight font-bold tracking-tight">
+              Wheelind in your pocket
+            </h2>
+            <p className="mt-3 max-w-md text-[13px] leading-relaxed text-[#8E95A5]">
+              Faster booking, live tracking notifications and one-tap SOS. Android and iOS builds roll
+              out with our Kolkata launch — book on the web meanwhile.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              {["Android — coming soon", "iOS — coming soon"].map((s) => (
+                <span
+                  key={s}
+                  data-testid={`landing-store-${s.split(" ")[0].toLowerCase()}`}
+                  className="flex items-center gap-2 rounded-xl border border-[#2A303F] px-4 py-3 text-[13px] font-semibold text-[#C2C7D4]"
+                >
+                  <Download size={14} className="text-[#D4AF37]" />
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-[#232834] bg-[#0D0F14] p-6">
+            <p className="text-[12px] text-[#8E95A5]">
+              No app needed today — the full booking journey, fare estimate, OTP trip start and wallet
+              all work right here in the browser.
+            </p>
+            <Link
+              to={bookHref}
+              data-testid="landing-download-book"
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#1D2330] px-4 py-3 text-[13px] font-semibold text-[#F5D061] transition-colors duration-150 hover:bg-[#262d3d]"
+            >
+              Book on the web
+              <ArrowRight size={14} />
+            </Link>
           </div>
         </div>
       </section>

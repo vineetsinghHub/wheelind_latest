@@ -9,6 +9,7 @@ import type { CategoryEstimate, EstimateResponse, Place, ReverseGeocode, RideWit
 import { PAYMENT_METHODS } from "@/rider/lib/riderTypes";
 import type { Ride } from "@/lib/types";
 import { inr2, fmtDateTime, titleize } from "@/lib/types";
+import { useRiderAuth } from "@/rider/lib/riderAuth";
 
 function msg(e: unknown, fallback: string) {
   if (e instanceof ApiError && e.body && typeof e.body === "object") {
@@ -92,6 +93,7 @@ function PlaceField({
 export default function RiderBook() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { signedIn, requireSignIn } = useRiderAuth();
   const [pickup, setPickup] = useState<Place | null>(null);
   const [drop, setDrop] = useState<Place | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -134,6 +136,7 @@ export default function RiderBook() {
   const { data: active } = useQuery({
     queryKey: ["rider-active"],
     queryFn: () => apiGet<RideWithDriver | null>("/rider/rides/active"),
+    enabled: signedIn,
   });
   useEffect(() => {
     if (active?.ride) navigate(`/trip/${active.ride.id}`, { replace: true });
@@ -152,6 +155,7 @@ export default function RiderBook() {
       return apiGet<Ride[]>("/rider/scheduled");
     },
     refetchInterval: 30000,
+    enabled: signedIn,
   });
 
   const { data: estimate, isFetching } = useQuery({
@@ -199,9 +203,10 @@ export default function RiderBook() {
   const options = estimate?.options ?? [];
 
   return (
-    <div className="space-y-5">
+    <div className="grid gap-5 lg:grid-cols-[400px_1fr]">
+      <div className="space-y-5">
       <div>
-        <h1 className="text-[24px] font-bold tracking-tight text-white">Where to?</h1>
+        <h1 className="font-heading text-[26px] font-bold tracking-tight text-white">Get a ride</h1>
         <p className="mt-1 text-[13px] text-[#8E95A5]">Upfront fare, no surprises.</p>
       </div>
 
@@ -294,6 +299,9 @@ export default function RiderBook() {
         </div>
       ) : null}
 
+      </div>
+
+      <div className="space-y-5">
       {pickup && drop ? (
         <div className="rounded-2xl border border-[#232834] bg-[#11141A]">
           <header className="flex items-center justify-between border-b border-[#232834] px-4 py-3">
@@ -410,7 +418,9 @@ export default function RiderBook() {
                 disabled={book.isPending || (showSchedule && !scheduleAt)}
                 onClick={() => {
                   const opt = options.find((o) => o.category === selected);
-                  if (opt) book.mutate(opt);
+                  if (!opt) return;
+                  // Browsing and pricing are open; requesting is the point of sign-in.
+                  requireSignIn(() => book.mutate(opt));
                 }}
                 data-testid="request-ride-button"
                 className="w-full rounded-xl bg-[#D4AF37] py-3.5 text-[15px] font-semibold text-[#0B0C10] transition-colors duration-150 hover:bg-[#E5C158] disabled:opacity-50"
@@ -424,7 +434,22 @@ export default function RiderBook() {
             </div>
           ) : null}
         </div>
-      ) : null}
+      ) : (
+        <div
+          data-testid="choose-ride-placeholder"
+          className="flex h-full min-h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed border-[#232834] bg-[#0D0F14] px-6 py-14 text-center"
+        >
+          <Navigation size={22} className="text-[#D4AF37]" />
+          <p className="font-heading mt-4 text-[18px] font-semibold tracking-tight text-white">
+            Choose a ride
+          </p>
+          <p className="mt-1.5 max-w-xs text-[13px] text-[#8E95A5]">
+            Set your pickup and drop on the left — bike, auto, cab, sedan, XL and parcel fares appear
+            here instantly.
+          </p>
+        </div>
+      )}
+      </div>
     </div>
   );
 }

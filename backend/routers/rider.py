@@ -153,7 +153,8 @@ async def places(q: str = "", limit: int = Query(8, ge=1, le=20)):
 
 
 @router.post("/estimate", response_model=EstimateResponse)
-async def estimate(payload: EstimateRequest, _: Rider = Depends(current_rider)):
+async def estimate(payload: EstimateRequest):
+    """Public — riders price a trip before signing in; sign-in is enforced at booking."""
     distance = road_distance_km(payload.pickup_lat, payload.pickup_lng, payload.drop_lat, payload.drop_lng)
     if distance <= 0:
         raise HTTPException(status_code=422, detail="Pickup and drop cannot be the same place")
@@ -652,7 +653,7 @@ async def recharge(payload: RechargeRequest, rider: Rider = Depends(current_ride
 
 
 @router.get("/promos", response_model=list[RiderPromo])
-async def promos(_: Rider = Depends(current_rider)):
+async def promos():
     docs = await db.campaigns.find({"app": "rider", "status": "active"}).to_list(50)
     return [RiderPromo(
         id=d["id"], name=d["name"], code=d.get("code"), discount_type=d["discount_type"],

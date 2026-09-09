@@ -3,7 +3,7 @@
 ## Two apps, one deployment
 | App | URL | Auth cookie | Who |
 |---|---|---|---|
-| **Rider app** | `/` marketing landing, booking at `/ride`, sign-in `/welcome` | `wl_rider` (30d) | public consumers |
+| **Rider app** | `/` marketing landing, booking at `/ride` (open to guests), sign-in via captcha modal at request time | `wl_rider` (30d) | public consumers |
 | **Admin console** | `/admin` (sign-in at `/admin/login`) | `wl_session` (7d) | Wheelind staff |
 
 Separate shells, layouts, designs and sessions; they share one MongoDB, so a rider's booking
@@ -255,3 +255,11 @@ CARTO's dark basemap was dropped — it now stamps "API KEY REQUIRED" across eve
 7. **No geocoding or routing provider** — curated place list + haversine×1.35 distance.
 8. **No payment gateway, SMS provider, or masked-calling provider** — all simulated.
 7. Fare config is versioned via a counter; full historical version rows are not retained.
+
+## Rider auth (updated)
+- Landing (`/`) and booking (`/ride`) are fully public. `/api/rider/estimate` and `/api/rider/promos`
+  no longer require the `wl_rider` cookie, so guests see live fares and offers.
+- Sign-in happens in `rider/components/SignInModal.tsx` (arithmetic captcha -> OTP), triggered by
+  `requireSignIn()` from `rider/lib/riderAuth.ts` when a guest taps Request ride, or opens /trips or /wallet.
+- `RiderLayout` is now a single sticky header (Ride / My Trips / Wallet + Download app + session) with
+  no bottom tab bar, matching the landing chrome.
