@@ -26,7 +26,7 @@ export default function Login() {
     onSuccess: (admin) => {
       beginSession();
       toast.success(`Welcome back, ${admin.name}`);
-      navigate("/", { replace: true });
+      navigate("/admin", { replace: true });
     },
     onError: (err) => {
       const msg =

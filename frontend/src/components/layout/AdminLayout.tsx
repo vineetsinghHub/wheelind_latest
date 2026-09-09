@@ -13,19 +13,19 @@ import type { AdminUser } from "@/lib/types";
 import { titleize } from "@/lib/types";
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/fleet", label: "Live Fleet", icon: Map },
-  { to: "/rides", label: "Rides", icon: CarFront },
-  { to: "/dispatch", label: "Dispatch Lab", icon: Radar },
-  { to: "/drivers", label: "Drivers & KYC", icon: Users },
-  { to: "/riders", label: "Riders", icon: Activity },
-  { to: "/fares", label: "Fare Config", icon: BadgeIndianRupee },
-  { to: "/commissions", label: "Commission & Passes", icon: Percent },
-  { to: "/campaigns", label: "Campaigns", icon: Megaphone },
-  { to: "/wallet", label: "Wallet Ledger", icon: Wallet },
-  { to: "/sos", label: "SOS Incidents", icon: LifeBuoy },
-  { to: "/flags", label: "Feature Flags", icon: Flag },
-  { to: "/audit", label: "Audit Logs", icon: FileClock },
+  { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/admin/fleet", label: "Live Fleet", icon: Map },
+  { to: "/admin/rides", label: "Rides", icon: CarFront },
+  { to: "/admin/dispatch", label: "Dispatch Lab", icon: Radar },
+  { to: "/admin/drivers", label: "Drivers & KYC", icon: Users },
+  { to: "/admin/riders", label: "Riders", icon: Activity },
+  { to: "/admin/fares", label: "Fare Config", icon: BadgeIndianRupee },
+  { to: "/admin/commissions", label: "Commission & Passes", icon: Percent },
+  { to: "/admin/campaigns", label: "Campaigns", icon: Megaphone },
+  { to: "/admin/wallet", label: "Wallet Ledger", icon: Wallet },
+  { to: "/admin/sos", label: "SOS Incidents", icon: LifeBuoy },
+  { to: "/admin/flags", label: "Feature Flags", icon: Flag },
+  { to: "/admin/audit", label: "Audit Logs", icon: FileClock },
 ];
 
 export default function AdminLayout() {
@@ -38,12 +38,12 @@ export default function AdminLayout() {
 
   // Redirect in an effect, never during render.
   useEffect(() => {
-    if (isError) navigate("/login", { replace: true });
+    if (isError) navigate("/admin/login", { replace: true });
   }, [isError, navigate]);
 
   async function handleLogout() {
     await endSession();
-    navigate("/login", { replace: true });
+    navigate("/admin/login", { replace: true });
     toast.success("Signed out of Wheelind Admin");
   }
 

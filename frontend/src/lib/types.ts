@@ -145,6 +145,12 @@ export interface Ride {
   driver_earning: number;
   cancellation_reason: string | null;
   surge_multiplier: number;
+  drop_lat: number | null;
+  drop_lng: number | null;
+  promo_code: string | null;
+  source: string;
+  rider_rating: number | null;
+  rider_comment: string | null;
   created_at: string;
 }
 

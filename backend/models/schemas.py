@@ -205,6 +205,12 @@ class Ride(BaseModel):
     driver_earning: float = 0
     cancellation_reason: Optional[str] = None
     surge_multiplier: float = 1.0
+    drop_lat: Optional[float] = None
+    drop_lng: Optional[float] = None
+    promo_code: Optional[str] = None
+    source: str = "seed"
+    rider_rating: Optional[int] = None
+    rider_comment: Optional[str] = None
     created_at: datetime = Field(default_factory=utcnow)
 
 

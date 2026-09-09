@@ -1,12 +1,13 @@
 import { Routes, Route } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 
+// Admin console — staff only, namespaced under /admin.
 import AdminLayout from "@/components/layout/AdminLayout";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import LiveFleet from "@/pages/LiveFleet";
-import DispatchLab from "@/pages/DispatchLab";
 import Rides from "@/pages/Rides";
+import DispatchLab from "@/pages/DispatchLab";
 import DriversKYC from "@/pages/DriversKYC";
 import Riders from "@/pages/Riders";
 import FareConfigPage from "@/pages/FareConfig";
@@ -17,29 +18,48 @@ import SOSIncidents from "@/pages/SOSIncidents";
 import FeatureFlags from "@/pages/FeatureFlags";
 import AuditLogs from "@/pages/AuditLogs";
 
-// One <Route> per page in src/pages; BrowserRouter already wraps this in main.tsx.
+// Rider app — the public consumer product at the root.
+import RiderLayout from "@/rider/RiderLayout";
+import RiderWelcome from "@/rider/pages/RiderWelcome";
+import RiderBook from "@/rider/pages/RiderBook";
+import RiderTrip from "@/rider/pages/RiderTrip";
+import RiderTrips from "@/rider/pages/RiderTrips";
+import RiderWalletPage from "@/rider/pages/RiderWalletPage";
+
 export default function App() {
   return (
     <>
       <Routes>
-        <Route path="/login" element={<Login />} />
+        {/* Rider app */}
+        <Route path="/welcome" element={<RiderWelcome />} />
+        <Route element={<RiderLayout />}>
+          <Route path="/" element={<RiderBook />} />
+          <Route path="/trip/:rideId" element={<RiderTrip />} />
+          <Route path="/trips" element={<RiderTrips />} />
+          <Route path="/wallet" element={<RiderWalletPage />} />
+        </Route>
+
+        {/* Admin console */}
+        <Route path="/admin/login" element={<Login />} />
         <Route element={<AdminLayout />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/fleet" element={<LiveFleet />} />
-          <Route path="/rides" element={<Rides />} />
-          <Route path="/dispatch" element={<DispatchLab />} />
-          <Route path="/drivers" element={<DriversKYC />} />
-          <Route path="/riders" element={<Riders />} />
-          <Route path="/fares" element={<FareConfigPage />} />
-          <Route path="/commissions" element={<CommissionPasses />} />
-          <Route path="/campaigns" element={<Campaigns />} />
-          <Route path="/wallet" element={<WalletLedger />} />
-          <Route path="/sos" element={<SOSIncidents />} />
-          <Route path="/flags" element={<FeatureFlags />} />
-          <Route path="/audit" element={<AuditLogs />} />
+          <Route path="/admin" element={<Dashboard />} />
+          <Route path="/admin/fleet" element={<LiveFleet />} />
+          <Route path="/admin/rides" element={<Rides />} />
+          <Route path="/admin/dispatch" element={<DispatchLab />} />
+          <Route path="/admin/drivers" element={<DriversKYC />} />
+          <Route path="/admin/riders" element={<Riders />} />
+          <Route path="/admin/fares" element={<FareConfigPage />} />
+          <Route path="/admin/commissions" element={<CommissionPasses />} />
+          <Route path="/admin/campaigns" element={<Campaigns />} />
+          <Route path="/admin/wallet" element={<WalletLedger />} />
+          <Route path="/admin/sos" element={<SOSIncidents />} />
+          <Route path="/admin/flags" element={<FeatureFlags />} />
+          <Route path="/admin/audit" element={<AuditLogs />} />
         </Route>
       </Routes>
-      <Toaster position="bottom-right" richColors />
+      {/* top-center keeps toasts clear of the admin sign-out control (top-right)
+          and the rider app's bottom tab bar */}
+      <Toaster position="top-center" richColors />
     </>
   );
 }

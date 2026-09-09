@@ -37,7 +37,20 @@ INDEXES: dict[str, list[IndexModel]] = {
     ],
     "riders": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),
+        IndexModel([("phone", ASCENDING)], name="phone"),
         IndexModel([("created_at", DESCENDING)], name="created_desc"),
+    ],
+    "rider_sessions": [
+        IndexModel([("token", ASCENDING)], name="token", unique=True),
+        IndexModel([("expires_at", ASCENDING)], name="ttl", expireAfterSeconds=0),
+    ],
+    "rider_otps": [
+        IndexModel([("phone", ASCENDING)], name="phone"),
+        IndexModel([("expires_at", ASCENDING)], name="ttl", expireAfterSeconds=0),
+    ],
+    "trip_shares": [
+        IndexModel([("token", ASCENDING)], name="token", unique=True),
+        IndexModel([("expires_at", ASCENDING)], name="ttl", expireAfterSeconds=0),
     ],
     "rides": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),

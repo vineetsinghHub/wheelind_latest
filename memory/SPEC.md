@@ -1,4 +1,68 @@
-# Wheelind — Admin Portal & Backend (living spec)
+# Wheelind — Rider App + Admin Portal + Backend (living spec)
+
+## Two apps, one deployment
+| App | URL | Auth cookie | Who |
+|---|---|---|---|
+| **Rider app** | `/` (sign-in at `/welcome`) | `wl_rider` (30d) | public consumers |
+| **Admin console** | `/admin` (sign-in at `/admin/login`) | `wl_session` (7d) | Wheelind staff |
+
+Separate shells, layouts, designs and sessions; they share one MongoDB, so a rider's booking
+appears immediately in the admin Rides/Fleet/SOS screens. A rider session grants **no** admin
+access and vice versa. This pod runs one Vite server, so both ship from the same build —
+they are not separate deployments.
+
+Rider app source lives in `frontend/src/rider/` (`RiderLayout` + `pages/` + `lib/riderTypes.ts`);
+admin source stays in `frontend/src/pages/` + `components/layout/AdminLayout.tsx`.
+
+## What the app is
+Kolkata-first ride-hailing platform for **Wheelind** ("Your ride, our pride") — rider web app
+plus operations console. **No driver app exists**; driver-side actions are simulated.
+
+Stack actually used: **FastAPI + MongoDB (motor) + React 19 + TS + Tailwind v4**.
+The user's original plan named NestJS + PostgreSQL/PostGIS + Redis + BullMQ; they explicitly
+approved building on this pod's FastAPI/Mongo stack with the **same API contract**.
+
+Design: matte black (`#090A0C` admin / `#0B0C10` rider) + metallic gold `#D4AF37`.
+Fonts: Outfit (headings), Plus Jakarta Sans (body), JetBrains Mono (IDs, money, OTP).
+Toasts render **top-center** — bottom-right covered the rider's tab bar and top-right covered
+the admin sign-out button (both caused real click-interception bugs).
+
+## Rider app (`/api/rider/*`, `routers/rider.py`)
+- **Auth**: `POST /rider/auth/request-otp` → returns the OTP in the response (`otp_hint`) because
+  **no SMS provider is wired up**; `POST /rider/auth/verify` accepts **any 4-digit code** and
+  auto-creates the account on first sign-in. Blocked riders get 403.
+- **Places**: `GET /rider/places?q=` searches a **curated 45-entry Kolkata list**
+  (`lib/places.py`). There is **no geocoding provider**.
+- **Distance**: haversine × `ROAD_FACTOR` (1.35). There is **no routing provider**, so this is an
+  approximation, not a road route.
+- **Estimate**: `POST /rider/estimate` prices every category through the shared pricing engine,
+  adds a per-category ETA from live nearby supply (2dsphere, 6 km), and applies a supply-driven
+  surge (0 partners → 1.5×, 1 partner → 1.2×, capped by `surge_cap`). Disabled categories are
+  returned with `available: false` from the admin feature flags.
+- **Booking lifecycle**, all server-enforced:
+  - `POST /rider/rides` — blocks a second live ride (409), disabled categories (409), invalid or
+    exhausted promo codes (422/409), cash for restricted/prepaid-only riders (403), and wallet
+    payment beyond balance (409). Applies percentage/flat promo discounts and increments the
+    campaign's `budget_used`/`redemptions`. Rides are tagged `source: "rider_app"`.
+  - `POST /rider/rides/{id}/match` — 2dsphere `$geoNear` assignment, radius widening with wait
+    time (4 → 8 → 15 km), and **expiry at 180s** (§8.1 no infinite search). Marks the driver
+    `on_trip`.
+  - `POST /rider/rides/{id}/increase-fare` — raises the fare and **re-opens an expired search**.
+  - `POST /rider/rides/{id}/advance` — **driver simulator** (no driver app): assigned → arriving
+    → waiting_at_pickup → otp_pending.
+  - `POST /rider/rides/{id}/start` — **OTP gate**: wrong code 422, wrong stage 409.
+  - `POST /rider/rides/{id}/complete` — debits the wallet + writes a ledger entry when paying by
+    wallet, computes driver earning, frees the driver.
+  - `POST /rider/rides/{id}/cancel` — charges the config's `cancellation_charge` once the driver
+    has arrived (§8.2) and books it to the ledger.
+  - `POST /rider/rides/{id}/rate`, `/sos` (**lands in the admin SOS console**), `/share`
+    (mock link, 90 min).
+- **Wallet**: `GET /rider/wallet`, `POST /rider/wallet/recharge` — **payments are simulated, no
+  gateway**. Top-ups ≥ ₹1,000 earn 5% cashback (max ₹100) into the separate cashback pool.
+- **Promos**: `GET /rider/promos` — active rider campaigns still inside budget.
+- Masked calling is a **display-only** fake number (`+91 80 4718 ••••`); no telephony provider.
+
+## Admin console
 
 ## What the app is
 Kolkata-first ride-hailing operations console for **Wheelind** ("Your ride, our pride").
@@ -136,7 +200,16 @@ multipart endpoint. Replacing `DOC_IMAGES` with real S3/GCS keys is the upgrade 
 - **No outbound reminders are sent** — there is no SMS/email/push provider wired up; the alerts are
   an in-console worklist only.
 
-## Routes → pages
+## Rider routes → pages (`frontend/src/rider/`)
+| Path | Page | What it does |
+|---|---|---|
+| `/welcome` | `RiderWelcome.tsx` | hero landing + phone → OTP sign-in (code shown on screen), link to the admin console |
+| `/` | `RiderBook.tsx` | place-search pickup/drop, road distance, per-category fare cards with ETA/surge, promo chips, payment picker, request ride; auto-redirects to a live trip |
+| `/trip/:rideId` | `RiderTrip.tsx` | live stage tracking (4s poll), search progress bar with 180s timeout, driver card with masked call + trip share, OTP-to-start, driver simulator, SOS, cancel, completion + star rating |
+| `/trips` | `RiderTrips.tsx` | ride history with state chips and saved ratings |
+| `/wallet` | `RiderWalletPage.tsx` | 3-pool balances, simulated top-up (5% cashback ≥ ₹1,000), live offers, transaction ledger |
+
+## Admin routes → pages (all under `/admin`)
 | Path | Page | What it does |
 |---|---|---|
 | `/login` | `Login.tsx` | split branded login + 3 demo pills |
@@ -176,5 +249,8 @@ CARTO's dark basemap was dropped — it now stamps "API KEY REQUIRED" across eve
 4. **RBAC is display-only** — roles are recorded and audited, not enforced per route.
 5. **No third-party integrations**: no Razorpay, SMS/OTP, masked calling, push, or object storage.
    Map tiles are the only external call (CARTO dark basemap).
-6. **No rider/driver mobile apps** and no payout execution — out of the requested scope.
+6. **No driver app** — driver-side progress is simulated from the rider trip screen. No payout
+   execution. Rider app is a **web** app, not React Native.
+7. **No geocoding or routing provider** — curated place list + haversine×1.35 distance.
+8. **No payment gateway, SMS provider, or masked-calling provider** — all simulated.
 7. Fare config is versioned via a counter; full historical version rows are not retained.

@@ -42,7 +42,7 @@ export default function Dashboard() {
           <h1 className="mt-1.5 text-[30px] font-bold tracking-tight text-white">Dashboard</h1>
         </div>
         <Link
-          to="/fleet"
+          to="/admin/fleet"
           data-testid="dashboard-open-fleet-link"
           className="flex items-center gap-2 rounded-lg border border-[#2A303F] bg-[#11141A] px-4 py-2 text-[13px] text-[#9BA1B0] transition-colors duration-150 hover:border-[#D4AF37]/50 hover:text-white"
         >
@@ -122,7 +122,7 @@ export default function Dashboard() {
               sos.slice(0, 6).map((s) => (
                 <Link
                   key={s.id}
-                  to="/sos"
+                  to="/admin/sos"
                   data-testid={`sos-queue-item-${s.id}`}
                   className="block px-5 py-3.5 transition-colors duration-150 hover:bg-[#161A22]"
                 >
@@ -244,7 +244,7 @@ export default function Dashboard() {
         title="Document renewal alerts"
         action={
           <Link
-            to="/drivers"
+            to="/admin/drivers"
             data-testid="document-alerts-review-link"
             className="text-[11px] text-[#F5D061] transition-colors duration-150 hover:text-[#E5C158]"
           >
