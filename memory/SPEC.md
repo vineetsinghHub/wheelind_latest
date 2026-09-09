@@ -61,6 +61,39 @@ Enforced server-side in `PATCH /api/rides/{id}/state`:
   usage → else **422**; unknown id → **404**. `active_subscribers` is never overwritten.
 - Every mutating route writes an `audit_logs` entry via `lib/auth.log_action`.
 
+## Pricing engine (`backend/lib/pricing.py`)
+Pure function `quote_fare(config, commission_pct, ...)` — no DB, no ambient clock beyond
+`is_night_ist()` — so quotes are reproducible and unit-testable. Documented order of operations,
+because fare disputes hinge on it:
+1. `base + distance + time + waiting`
+2. surge applies to **base + distance only** (never time/waiting)
+3. night charge = `night_charge_pct` of base + distance, on the **IST** clock (23:00–05:00), never UTC
+4. rider-added fare on top
+5. `minimum_fare` floor applies to the ride fare, before discount/tax/toll
+6. discount, then tax on the discounted ride fare
+7. toll/parking added last — **never taxed, never commissioned** (driver keeps it)
+
+`POST /api/pricing/quote` reads the live `fare_configs` + `commission_configs` (honouring
+`promo_override_pct`), rejects surge above that category's `surge_cap` (**422**), unknown category
+(**404**), inactive config (**409**), and out-of-range trip inputs via Pydantic `Field` bounds.
+Returns the breakup plus `commission` / `driver_earning`, `config_version`, and
+`minimum_fare_applied` / `night_charge_applied` flags. `zero_commission: true` models an active pass.
+
+## Geospatial dispatch (2dsphere)
+`drivers.location` is a GeoJSON Point (`[lng, lat]`) backfilled by `seed.py`, indexed by a
+`GEOSPHERE` IndexModel in `lib/db.py` (`location_2dsphere`).
+
+`GET /api/dispatch/nearby-drivers?lat=&lng=&radius_km=&category=&limit=&include_on_trip=`
+runs a Mongo `$geoNear` aggregation (spherical, `maxDistance` in metres) and returns drivers
+closest-first with a real `distance_km` plus an `eta_min` derived from per-category Kolkata road
+speeds. Eligibility mirrors dispatch rules and is applied **inside** `$geoNear.query`:
+`kyc_status == approved`, `is_online == true`, and `on_trip == false` unless `include_on_trip`.
+Offline or unapproved partners can never surface. Returns **503** if the index/backfill is missing.
+
+**This is the lookup layer only — not a dispatch engine.** There are still no timed offers,
+accept/decline tracking, request locks, search-radius expansion, or 3–5 minute expiry; those need
+Redis. Driver positions are static seed coordinates with no heartbeat feed.
+
 ## Driver KYC document scans, per-document review & expiry
 `DriverDocument.file_url` points at 4 AI-generated **sample** document images (driving licence,
 vehicle RC, insurance, identity card) hosted on the Emergent static CDN and assigned in `seed.py`
@@ -110,6 +143,7 @@ multipart endpoint. Replacing `DOC_IMAGES` with real S3/GCS keys is the upgrade 
 | `/` | `Dashboard.tsx` | KPI tiles, hourly ride bar chart, revenue-by-service pie, lifecycle breakdown, open-SOS queue, **document renewal alerts table** |
 | `/fleet` | `LiveFleet.tsx` | **Leaflet** dark-cartography Kolkata map of online drivers + active trip monitor |
 | `/rides` | `Rides.tsx` | ride lookup, state/category/search filters, detail drawer with full fare breakup, lifecycle actions, refund |
+| `/dispatch` | `DispatchLab.tsx` | fare quote form (all breakup inputs, night mode, zero-comm pass) + 2dsphere nearest-driver panel with radius slider, service-match toggle, and a map showing pickup, search radius and candidate lines |
 | `/drivers` | `DriversKYC.tsx` | partner roster, expiry-state + re-submitted filters, KYC review drawer, per-document **View → preview modal** with **Approve / Reject / Partner re-upload**, expiry + re-submission badges, whole-file KYC decision, force online/offline |
 | `/riders` | `Riders.tsx` | rider directory, 3 balances, active/restricted/blocked controls |
 | `/fares` | `FareConfig.tsx` | per-category fare breakup editor + live 8km sample preview, versioned saves |
@@ -121,17 +155,24 @@ multipart endpoint. Replacing `DOC_IMAGES` with real S3/GCS keys is the upgrade 
 | `/audit` | `AuditLogs.tsx` | full action trail with entity + actor filters |
 
 ## Seed data (`cd /app/backend && python seed.py`, idempotent — drops then reseeds)
-48 drivers, 60 riders, 420 rides, 8 fare configs, 8 commission configs, 3 passes, 16 feature flags,
-9 campaigns, 300 ledger entries, 12 SOS incidents, 30 audit logs. Kolkata zones: Park Street,
-Salt Lake Sector V, Howrah Station, CCU Airport, New Town, Ballygunge, Esplanade, Jadavpur.
+90 drivers (each with a GeoJSON `location`), 60 riders, 420 rides, 8 fare configs, 8 commission
+configs, 3 passes, 16 feature flags, 9 campaigns, 300 ledger entries, 12 SOS incidents, 30 audit
+logs. Kolkata zones: Park Street, Salt Lake Sector V, Howrah Station, CCU Airport, New Town,
+Ballygunge, Esplanade, Jadavpur (mirrored in `KOLKATA_ZONES` in `frontend/src/lib/types.ts`).
 Live categories by default: bike, auto, cab, sedan, xl. Off: rentals, outstation, parcel.
+
+## Maps
+Leaflet with **keyless OpenStreetMap tiles**; the dark basemap is achieved by CSS-inverting
+`.leaflet-tile-pane` in `index.css` (markers live in other panes and stay true-colour).
+CARTO's dark basemap was dropped — it now stamps "API KEY REQUIRED" across every tile.
 
 ## Spec deviations (intentional — not bugs)
 1. **FastAPI + MongoDB instead of NestJS + PostgreSQL/PostGIS**; user-approved.
 2. **No Redis / BullMQ**: no driver-location heartbeat expiry worker, no offer timers, no payout
    batch jobs. Driver presence is a stored `is_online` flag an admin can override.
-3. **No real-time dispatch engine**: no nearest-driver geospatial matching, no timed offers, no
-   3–5 min request expiry loop. Ride states are admin-driven; rides arrive pre-seeded.
+3. **No real-time dispatch engine**: `GET /api/dispatch/nearby-drivers` provides the 2dsphere
+   nearest-driver *lookup*, but there are still no timed offers, accept/decline tracking, request
+   locks, controlled search expansion, or 3–5 min request expiry. Ride states are admin-driven.
 4. **RBAC is display-only** — roles are recorded and audited, not enforced per route.
 5. **No third-party integrations**: no Razorpay, SMS/OTP, masked calling, push, or object storage.
    Map tiles are the only external call (CARTO dark basemap).

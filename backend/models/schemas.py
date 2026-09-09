@@ -281,6 +281,61 @@ class SubscriptionPass(BaseModel):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class QuoteRequest(BaseModel):
+    category: str
+    distance_km: float = Field(gt=0, le=800)
+    duration_min: int = Field(gt=0, le=1440)
+    waiting_min: int = Field(default=0, ge=0, le=180)
+    surge_multiplier: float = Field(default=1.0, ge=1.0, le=5.0)
+    rider_added_fare: float = Field(default=0.0, ge=0, le=2000)
+    toll_parking: float = Field(default=0.0, ge=0, le=5000)
+    discount: float = Field(default=0.0, ge=0, le=5000)
+    zero_commission: bool = False
+    night: Optional[bool] = None
+
+
+class QuoteResponse(BaseModel):
+    category: str
+    breakup: FareBreakup
+    ride_fare_before_discount: float
+    minimum_fare_applied: bool
+    night_charge_applied: bool
+    commission_pct: float
+    commission: float
+    driver_earning: float
+    zero_commission: bool
+    config_version: int
+    tax_pct: float
+    surge_cap: float
+
+
+class NearbyDriver(BaseModel):
+    id: str
+    name: str
+    phone: str
+    category: str
+    vehicle_model: str
+    vehicle_number: str
+    zone: str
+    rating: float
+    lat: float
+    lng: float
+    distance_km: float
+    eta_min: int
+    on_trip: bool
+    commission_model: str
+
+
+class NearbySearch(BaseModel):
+    pickup_lat: float
+    pickup_lng: float
+    radius_km: float
+    category: Optional[str]
+    eligible: int
+    considered: int
+    drivers: list[NearbyDriver]
+
+
 class SubscriptionPassCreate(BaseModel):
     name: str
     duration: Literal["daily", "weekly", "monthly"]

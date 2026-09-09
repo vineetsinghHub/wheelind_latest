@@ -5,6 +5,7 @@ import AdminLayout from "@/components/layout/AdminLayout";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import LiveFleet from "@/pages/LiveFleet";
+import DispatchLab from "@/pages/DispatchLab";
 import Rides from "@/pages/Rides";
 import DriversKYC from "@/pages/DriversKYC";
 import Riders from "@/pages/Riders";
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/fleet" element={<LiveFleet />} />
           <Route path="/rides" element={<Rides />} />
+          <Route path="/dispatch" element={<DispatchLab />} />
           <Route path="/drivers" element={<DriversKYC />} />
           <Route path="/riders" element={<Riders />} />
           <Route path="/fares" element={<FareConfigPage />} />

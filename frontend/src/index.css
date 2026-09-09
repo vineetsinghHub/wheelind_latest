@@ -175,8 +175,13 @@
   animation: wl-beacon 1.8s ease-out infinite;
 }
 
-/* Leaflet dark cartography */
+/* Leaflet dark cartography.
+   OSM ships only light tiles and needs no API key, so the tile pane is inverted into a
+   dark basemap in CSS. Markers/overlays live in other panes and stay true-colour. */
 .leaflet-container { background: #0A0C10; font-family: 'Plus Jakarta Sans Variable', sans-serif; }
+.leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.92) saturate(0.55);
+}
 .leaflet-control-attribution { background: rgba(9,10,12,0.75) !important; color: #6B7280 !important; font-size: 10px; }
 .leaflet-control-attribution a { color: #8E95A5 !important; }
 .leaflet-bar a { background: #11141A !important; color: #D4AF37 !important; border-color: #232834 !important; }

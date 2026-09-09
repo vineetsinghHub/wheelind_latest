@@ -6,7 +6,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo import ASCENDING, DESCENDING, IndexModel
+from pymongo import ASCENDING, DESCENDING, GEOSPHERE, IndexModel
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -32,6 +32,8 @@ INDEXES: dict[str, list[IndexModel]] = {
         IndexModel([("kyc_status", ASCENDING), ("created_at", DESCENDING)], name="kyc_created"),
         IndexModel([("is_online", ASCENDING)], name="online"),
         IndexModel([("category", ASCENDING)], name="category"),
+        # Geospatial dispatch: $geoNear on GeoJSON `location` requires a 2dsphere index.
+        IndexModel([("location", GEOSPHERE)], name="location_2dsphere"),
     ],
     "riders": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),

@@ -320,6 +320,72 @@ export interface FleetSnapshot {
   on_trip_count: number;
 }
 
+export interface QuoteRequest {
+  category: string;
+  distance_km: number;
+  duration_min: number;
+  waiting_min: number;
+  surge_multiplier: number;
+  rider_added_fare: number;
+  toll_parking: number;
+  discount: number;
+  zero_commission: boolean;
+  night: boolean | null;
+}
+
+export interface QuoteResponse {
+  category: string;
+  breakup: FareBreakup;
+  ride_fare_before_discount: number;
+  minimum_fare_applied: boolean;
+  night_charge_applied: boolean;
+  commission_pct: number;
+  commission: number;
+  driver_earning: number;
+  zero_commission: boolean;
+  config_version: number;
+  tax_pct: number;
+  surge_cap: number;
+}
+
+export interface NearbyDriver {
+  id: string;
+  name: string;
+  phone: string;
+  category: string;
+  vehicle_model: string;
+  vehicle_number: string;
+  zone: string;
+  rating: number;
+  lat: number;
+  lng: number;
+  distance_km: number;
+  eta_min: number;
+  on_trip: boolean;
+  commission_model: string;
+}
+
+export interface NearbySearch {
+  pickup_lat: number;
+  pickup_lng: number;
+  radius_km: number;
+  category: string | null;
+  eligible: number;
+  considered: number;
+  drivers: NearbyDriver[];
+}
+
+export const KOLKATA_ZONES: { name: string; lat: number; lng: number }[] = [
+  { name: "Park Street", lat: 22.5535, lng: 88.352 },
+  { name: "Salt Lake Sector V", lat: 22.5697, lng: 88.4336 },
+  { name: "Howrah Station", lat: 22.5839, lng: 88.3425 },
+  { name: "CCU Airport", lat: 22.6547, lng: 88.4467 },
+  { name: "New Town", lat: 22.58, lng: 88.465 },
+  { name: "Ballygunge", lat: 22.529, lng: 88.3654 },
+  { name: "Esplanade", lat: 22.5645, lng: 88.351 },
+  { name: "Jadavpur", lat: 22.499, lng: 88.3712 },
+];
+
 export const SERVICE_CATEGORIES = [
   "bike",
   "auto",

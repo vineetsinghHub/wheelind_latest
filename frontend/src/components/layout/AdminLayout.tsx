@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Activity, BadgeIndianRupee, CarFront, FileClock, Flag, LayoutDashboard, LifeBuoy, LogOut,
-  Map, Megaphone, Percent, Users, Wallet,
+  Map, Megaphone, Percent, Radar, Users, Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,6 +16,7 @@ const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/fleet", label: "Live Fleet", icon: Map },
   { to: "/rides", label: "Rides", icon: CarFront },
+  { to: "/dispatch", label: "Dispatch Lab", icon: Radar },
   { to: "/drivers", label: "Drivers & KYC", icon: Users },
   { to: "/riders", label: "Riders", icon: Activity },
   { to: "/fares", label: "Fare Config", icon: BadgeIndianRupee },

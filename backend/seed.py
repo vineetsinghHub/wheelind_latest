@@ -129,7 +129,7 @@ async def main() -> None:
 
     # drivers
     drivers = []
-    for i in range(48):
+    for i in range(90):
         cat = random.choice(CATEGORIES[:5] + ["parcel"])
         zone = random.choice(list(ZONES))
         lat, lng = ZONES[zone]
@@ -174,6 +174,12 @@ async def main() -> None:
         )
         drivers.append(d)
     await db.drivers.insert_many([d.model_dump() for d in drivers])
+    # Backfill GeoJSON `location` for the 2dsphere dispatch index (lng, lat order).
+    for d in drivers:
+        await db.drivers.update_one(
+            {"id": d.id},
+            {"$set": {"location": {"type": "Point", "coordinates": [d.lng, d.lat]}}},
+        )
     approved_drivers = [d for d in drivers if d.kyc_status == "approved"]
 
     # riders

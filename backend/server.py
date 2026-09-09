@@ -65,6 +65,7 @@ from routers import campaigns as campaigns_router
 from routers import config as config_router
 from routers import dashboard as dashboard_router
 from routers import people as people_router
+from routers import pricing as pricing_router
 from routers import rides as rides_router
 from routers import safety as safety_router
 from routers import wallet as wallet_router
@@ -74,6 +75,7 @@ api_router.include_router(dashboard_router.router)
 api_router.include_router(people_router.router)
 api_router.include_router(rides_router.router)
 api_router.include_router(config_router.router)
+api_router.include_router(pricing_router.router)
 api_router.include_router(campaigns_router.router)
 api_router.include_router(wallet_router.router)
 api_router.include_router(safety_router.router)
