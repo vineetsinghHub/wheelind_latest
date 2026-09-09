@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from lib.auth import current_admin, log_action
 from lib.db import db
+from lib.rbac import require
 from models.schemas import AdminUser, Campaign, CampaignCreate, CampaignStatusUpdate
 
 router = APIRouter(tags=["campaigns"])
@@ -23,7 +24,7 @@ async def list_campaigns(
 
 
 @router.post("/campaigns", response_model=Campaign)
-async def create_campaign(payload: CampaignCreate, admin: AdminUser = Depends(current_admin)):
+async def create_campaign(payload: CampaignCreate, admin: AdminUser = Depends(require("campaigns.write"))):
     if payload.budget_cap <= 0:
         raise HTTPException(status_code=422, detail="Budget cap must be positive")
     if payload.value <= 0:
@@ -40,7 +41,7 @@ async def create_campaign(payload: CampaignCreate, admin: AdminUser = Depends(cu
 
 @router.patch("/campaigns/{campaign_id}/status", response_model=Campaign)
 async def set_campaign_status(
-    campaign_id: str, payload: CampaignStatusUpdate, admin: AdminUser = Depends(current_admin)
+    campaign_id: str, payload: CampaignStatusUpdate, admin: AdminUser = Depends(require("campaigns.write"))
 ):
     doc = await db.campaigns.find_one({"id": campaign_id})
     if not doc:

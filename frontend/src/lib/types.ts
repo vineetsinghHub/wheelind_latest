@@ -87,6 +87,13 @@ export interface Driver {
   lat: number;
   lng: number;
   last_heartbeat: string | null;
+  payout_balance: number;
+  dispatch_priority: number;
+  ignored_offers: number;
+  declined_offers: number;
+  cancelled_trips: number;
+  offline_reason: string | null;
+  last_speed_kmph: number;
   documents: DriverDocument[];
   flags: string[];
   created_at: string;

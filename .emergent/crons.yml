@@ -1,0 +1,23 @@
+crons:
+  - name: dispatch-sweep
+    description: "Expires ride offers, timed-out searches and stale driver presence every 15 minutes"
+    cron: "*/15 * * * *"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/cron/dispatch-sweep"
+    method: POST
+    enabled: true
+  - name: campaign-life
+    description: "Activates due campaigns, expires finished ones and closes lapsed driver passes hourly"
+    cron: "5 * * * *"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/cron/campaign-lifecycle"
+    method: POST
+    enabled: true
+  - name: document-expiry
+    description: "Blocks partners with expired documents and prunes old offer records daily at 4am IST"
+    cron: "0 4 * * *"
+    timezone: "Asia/Kolkata"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/cron/document-expiry"
+    method: POST
+    enabled: true

@@ -7,6 +7,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Response
 
+from lib import dispatch, earnings, fraud
 from lib.db import db
 from lib.places import PLACES, duration_min, haversine_km, road_distance_km, search_places
 from lib.pricing import quote_fare
@@ -17,6 +18,10 @@ from models.rider import (
     RechargeRequest, ReverseGeocode, RideWithDriver, RiderProfile, RiderPromo, RiderWallet,
     SosRequest, TripShare,
 )
+from models.ops import (
+    EmergencyContact, EmergencyContactCreate, Invoice, RiderProfileUpdate, SavedPlace,
+    SavedPlaceCreate, SupportCase, SupportCaseCreate,
+)
 from models.schemas import FareBreakup, LedgerEntry, Ride, Rider, SosIncident, utcnow
 
 router = APIRouter(prefix="/rider", tags=["rider"])
@@ -25,6 +30,7 @@ RIDER_COOKIE = "wl_rider"
 SESSION_DAYS = 30
 OTP_TTL_SEC = 300
 SEARCH_TIMEOUT_SEC = 180  # §8.1 — no infinite search
+AUTO_ASSIGN_AFTER_SEC = 20  # demo fallback while the partner app is unreleased
 
 CATEGORY_META = {
     "bike": ("Bike", 1), "auto": ("Auto", 3), "cab": ("Cab", 4), "sedan": ("Sedan", 4),
@@ -421,42 +427,38 @@ async def ride_detail(ride_id: str, rider: Rider = Depends(current_rider)):
 
 @router.post("/rides/{ride_id}/match", response_model=RideWithDriver)
 async def match_ride(ride_id: str, rider: Rider = Depends(current_rider)):
-    """Assign the nearest eligible driver. Expires the request past the search timeout."""
+    """Drive the dispatch engine for this request.
+
+    Real matching is driver-led: `dispatch.create_offers` fans timed offers out to nearby
+    partners and the first accept wins. Because the partner app is not shipped yet, a ride
+    that no one has taken after AUTO_ASSIGN_AFTER_SEC falls back to the nearest driver so
+    the rider journey stays demonstrable.
+    """
     doc = await _load_ride(ride_id, rider)
     if doc["state"] != "searching":
         return await _hydrate(doc)
 
+    await dispatch.expire_offers()
     elapsed = (utcnow() - _aware(doc["created_at"])).total_seconds()
-    if elapsed > SEARCH_TIMEOUT_SEC:
+    if elapsed > dispatch.SEARCH_TIMEOUT_SEC:
         await db.rides.update_one({"id": ride_id}, {"$set": {
-            "state": "expired", "cancellation_reason": "No driver accepted within 3 minutes",
+            "state": "expired",
+            "cancellation_reason": "No partner accepted within the search window",
         }})
+        await db.ride_offers.update_many({"ride_id": ride_id, "state": "offered"}, {"$set": {"state": "lost"}})
         return await _hydrate(await db.rides.find_one({"id": ride_id}))
 
-    # Widen the radius as the wait grows, instead of searching forever.
-    radius_m = 4000 if elapsed < 45 else 8000 if elapsed < 100 else 15000
-    try:
-        found = await db.drivers.aggregate([
-            {"$geoNear": {
-                "near": {"type": "Point", "coordinates": [doc["pickup_lng"], doc["pickup_lat"]]},
-                "distanceField": "d", "maxDistance": radius_m, "spherical": True,
-                "query": {"kyc_status": "approved", "is_online": True, "on_trip": False,
-                          "category": doc["category"]},
-            }},
-            {"$limit": 1},
-        ]).to_list(1)
-    except Exception:
-        found = []
+    await dispatch.create_offers(doc)
 
-    if not found:
-        return await _hydrate(doc)
+    fresh = await db.rides.find_one({"id": ride_id})
+    if fresh["state"] != "searching":  # a partner accepted between polls
+        return await _hydrate(fresh)
 
-    d = found[0]
-    await db.drivers.update_one({"id": d["id"]}, {"$set": {"on_trip": True}})
-    await db.rides.update_one({"id": ride_id}, {"$set": {
-        "state": "driver_assigned", "driver_id": d["id"], "driver_name": d["name"],
-    }})
-    return await _hydrate(await db.rides.find_one({"id": ride_id}))
+    if elapsed >= AUTO_ASSIGN_AFTER_SEC:
+        assigned = await dispatch.assign_nearest(fresh)
+        if assigned:
+            return await _hydrate(assigned)
+    return await _hydrate(fresh)
 
 
 @router.post("/rides/{ride_id}/advance", response_model=RideWithDriver)
@@ -531,6 +533,7 @@ async def cancel_ride(ride_id: str, rider: Rider = Depends(current_rider)):
             entry_type="debit", pool="user_funded", amount=penalty, balance_after=bal,
             reason="Cancellation fee", ref_id=doc["code"],
         ).model_dump())
+    await fraud.note_rider_cancellation(rider.model_dump())
     return await _hydrate(await db.rides.find_one({"id": ride_id}))
 
 
@@ -556,9 +559,10 @@ async def complete_ride(ride_id: str, rider: Rider = Depends(current_rider)):
         ).model_dump())
 
     await db.rides.update_one({"id": ride_id}, {"$set": {
-        "state": "completed", "payment_status": "paid",
-        "driver_earning": round(total - float(doc.get("commission", 0)), 2),
+        "state": "completed", "payment_status": "paid", "completed_at": utcnow(),
     }})
+    # One earnings engine for both monetisation models — see lib/earnings.py.
+    await earnings.settle_ride(await db.rides.find_one({"id": ride_id}))
     if doc.get("driver_id"):
         await db.drivers.update_one({"id": doc["driver_id"]},
                                     {"$set": {"on_trip": False}, "$inc": {"total_rides": 1}})
@@ -660,3 +664,97 @@ async def promos():
         value=d["value"], max_discount=d.get("max_discount", 0),
         categories=d.get("categories", []), ends_on=d["ends_on"],
     ) for d in docs if float(d.get("budget_used", 0)) < float(d["budget_cap"])]
+
+
+# ---------------- profile, saved places, emergency contacts ----------------
+@router.patch("/profile", response_model=Rider)
+async def update_profile(payload: RiderProfileUpdate, rider: Rider = Depends(current_rider)):
+    update = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not update:
+        raise HTTPException(status_code=422, detail="Nothing to update")
+    await db.riders.update_one({"id": rider.id}, {"$set": update})
+    doc = await db.riders.find_one({"id": rider.id})
+    doc.pop("_id", None)
+    return Rider(**doc)
+
+
+@router.get("/places/saved", response_model=list[SavedPlace])
+async def saved_places(rider: Rider = Depends(current_rider)):
+    docs = await db.saved_places.find({"rider_id": rider.id}).sort("created_at", -1).to_list(50)
+    for d in docs:
+        d.pop("_id", None)
+    return [SavedPlace(**d) for d in docs]
+
+
+@router.post("/places/saved", response_model=SavedPlace)
+async def add_saved_place(payload: SavedPlaceCreate, rider: Rider = Depends(current_rider)):
+    if await db.saved_places.count_documents({"rider_id": rider.id}) >= 20:
+        raise HTTPException(status_code=409, detail="You can save up to 20 places")
+    place = SavedPlace(rider_id=rider.id, **payload.model_dump())
+    await db.saved_places.insert_one(place.model_dump())
+    return place
+
+
+@router.delete("/places/saved/{place_id}")
+async def delete_saved_place(place_id: str, rider: Rider = Depends(current_rider)):
+    res = await db.saved_places.delete_one({"id": place_id, "rider_id": rider.id})
+    if not res.deleted_count:
+        raise HTTPException(status_code=404, detail="Saved place not found")
+    return {"ok": True}
+
+
+@router.get("/emergency-contacts", response_model=list[EmergencyContact])
+async def emergency_contacts(rider: Rider = Depends(current_rider)):
+    docs = await db.emergency_contacts.find({"rider_id": rider.id}).to_list(20)
+    for d in docs:
+        d.pop("_id", None)
+    return [EmergencyContact(**d) for d in docs]
+
+
+@router.post("/emergency-contacts", response_model=EmergencyContact)
+async def add_emergency_contact(payload: EmergencyContactCreate, rider: Rider = Depends(current_rider)):
+    if await db.emergency_contacts.count_documents({"rider_id": rider.id}) >= 5:
+        raise HTTPException(status_code=409, detail="Up to 5 emergency contacts are allowed")
+    contact = EmergencyContact(rider_id=rider.id, **payload.model_dump())
+    await db.emergency_contacts.insert_one(contact.model_dump())
+    return contact
+
+
+@router.delete("/emergency-contacts/{contact_id}")
+async def delete_emergency_contact(contact_id: str, rider: Rider = Depends(current_rider)):
+    res = await db.emergency_contacts.delete_one({"id": contact_id, "rider_id": rider.id})
+    if not res.deleted_count:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    return {"ok": True}
+
+
+# ---------------- invoice & support ----------------
+@router.get("/rides/{ride_id}/invoice", response_model=Invoice)
+async def ride_invoice(ride_id: str, rider: Rider = Depends(current_rider)):
+    from routers.finance import _invoice
+
+    doc = await _load_ride(ride_id, rider)
+    if doc["state"] != "completed":
+        raise HTTPException(status_code=409, detail="An invoice is issued once the trip is completed")
+    return await _invoice(doc)
+
+
+@router.post("/disputes", response_model=SupportCase)
+async def raise_dispute(payload: SupportCaseCreate, rider: Rider = Depends(current_rider)):
+    from routers.support import open_case
+
+    ride = None
+    if payload.ride_id:
+        ride = await _load_ride(payload.ride_id, rider)
+    return await open_case(
+        kind=payload.kind, subject=payload.subject, detail=payload.detail,
+        raised_by="rider", ride=ride, rider=rider.model_dump(), amount=payload.amount_claimed,
+    )
+
+
+@router.get("/disputes", response_model=list[SupportCase])
+async def my_disputes(rider: Rider = Depends(current_rider)):
+    docs = await db.support_cases.find({"rider_id": rider.id}).sort("created_at", -1).to_list(50)
+    for d in docs:
+        d.pop("_id", None)
+    return [SupportCase(**d) for d in docs]

@@ -39,3 +39,11 @@ async def logout(response: Response, wl_session: Optional[str] = Cookie(default=
         await destroy_session(wl_session)
     response.delete_cookie(COOKIE_NAME, path="/")
     return {"ok": True}
+
+
+@router.get("/permissions")
+async def my_permissions(admin: AdminUser = Depends(current_admin)):
+    """Drives the admin UI and mirrors exactly what the server enforces."""
+    from lib.rbac import permissions_for
+
+    return {"role": admin.role, "permissions": permissions_for(admin.role)}

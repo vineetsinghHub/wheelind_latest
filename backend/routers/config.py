@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from lib.auth import current_admin, log_action
 from lib.db import db
+from lib.rbac import require
 from models.schemas import (
     AdminUser, CommissionConfig, CommissionUpdate, FareConfig, FareConfigUpdate, FeatureFlag,
     FlagToggle, SubscriptionPass, SubscriptionPassCreate, SubscriptionPassUpdate, utcnow,
@@ -17,7 +18,7 @@ async def list_fares(_: AdminUser = Depends(current_admin)):
 
 
 @router.put("/fare-configs/{category}", response_model=FareConfig)
-async def update_fare(category: str, payload: FareConfigUpdate, admin: AdminUser = Depends(current_admin)):
+async def update_fare(category: str, payload: FareConfigUpdate, admin: AdminUser = Depends(require("pricing.write"))):
     doc = await db.fare_configs.find_one({"category": category})
     if not doc:
         raise HTTPException(status_code=404, detail="Fare config not found for category")
@@ -38,7 +39,7 @@ async def list_commissions(_: AdminUser = Depends(current_admin)):
 
 
 @router.put("/commission-configs/{category}", response_model=CommissionConfig)
-async def update_commission(category: str, payload: CommissionUpdate, admin: AdminUser = Depends(current_admin)):
+async def update_commission(category: str, payload: CommissionUpdate, admin: AdminUser = Depends(require("commission.write"))):
     doc = await db.commission_configs.find_one({"category": category})
     if not doc:
         raise HTTPException(status_code=404, detail="Commission config not found")
@@ -59,7 +60,7 @@ async def list_passes(_: AdminUser = Depends(current_admin)):
 
 
 @router.post("/passes", response_model=SubscriptionPass)
-async def create_pass(payload: SubscriptionPassCreate, admin: AdminUser = Depends(current_admin)):
+async def create_pass(payload: SubscriptionPassCreate, admin: AdminUser = Depends(require("commission.write"))):
     if payload.price <= 0:
         raise HTTPException(status_code=422, detail="Pass price must be positive")
     if not payload.categories:
@@ -71,7 +72,7 @@ async def create_pass(payload: SubscriptionPassCreate, admin: AdminUser = Depend
 
 
 @router.put("/passes/{pass_id}", response_model=SubscriptionPass)
-async def update_pass(pass_id: str, payload: SubscriptionPassUpdate, admin: AdminUser = Depends(current_admin)):
+async def update_pass(pass_id: str, payload: SubscriptionPassUpdate, admin: AdminUser = Depends(require("commission.write"))):
     doc = await db.subscription_passes.find_one({"id": pass_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Pass not found")
@@ -87,7 +88,7 @@ async def update_pass(pass_id: str, payload: SubscriptionPassUpdate, admin: Admi
 
 
 @router.patch("/passes/{pass_id}/toggle", response_model=SubscriptionPass)
-async def toggle_pass(pass_id: str, admin: AdminUser = Depends(current_admin)):
+async def toggle_pass(pass_id: str, admin: AdminUser = Depends(require("commission.write"))):
     doc = await db.subscription_passes.find_one({"id": pass_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Pass not found")
@@ -104,7 +105,7 @@ async def list_flags(_: AdminUser = Depends(current_admin)):
 
 
 @router.patch("/feature-flags/{key}", response_model=FeatureFlag)
-async def toggle_flag(key: str, payload: FlagToggle, admin: AdminUser = Depends(current_admin)):
+async def toggle_flag(key: str, payload: FlagToggle, admin: AdminUser = Depends(require("flags.write"))):
     doc = await db.feature_flags.find_one({"key": key})
     if not doc:
         raise HTTPException(status_code=404, detail="Feature flag not found")

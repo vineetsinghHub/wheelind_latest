@@ -131,6 +131,14 @@ class Driver(BaseModel):
     lat: float = 22.5726
     lng: float = 88.3639
     last_heartbeat: Optional[datetime] = None
+    # Driver-app / dispatch fields
+    payout_balance: float = 0.0
+    dispatch_priority: int = 10
+    ignored_offers: int = 0
+    declined_offers: int = 0
+    cancelled_trips: int = 0
+    offline_reason: Optional[str] = None
+    last_speed_kmph: float = 0.0
     documents: list[DriverDocument] = []
     flags: list[str] = []
     created_at: datetime = Field(default_factory=utcnow)

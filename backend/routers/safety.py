@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from lib.auth import current_admin, log_action
 from lib.db import db
+from lib.rbac import require
 from models.schemas import AdminUser, AuditLog, AuditLogList, SosAction, SosIncident, utcnow
 
 router = APIRouter(tags=["safety"])
@@ -17,7 +18,7 @@ async def list_sos(status: Optional[str] = None, _: AdminUser = Depends(current_
 
 
 @router.patch("/sos/{incident_id}", response_model=SosIncident)
-async def act_on_sos(incident_id: str, payload: SosAction, admin: AdminUser = Depends(current_admin)):
+async def act_on_sos(incident_id: str, payload: SosAction, admin: AdminUser = Depends(require("sos.write"))):
     doc = await db.sos_incidents.find_one({"id": incident_id})
     if not doc:
         raise HTTPException(status_code=404, detail="SOS incident not found")

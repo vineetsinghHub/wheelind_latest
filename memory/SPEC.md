@@ -263,3 +263,58 @@ CARTO's dark basemap was dropped — it now stamps "API KEY REQUIRED" across eve
   `requireSignIn()` from `rider/lib/riderAuth.ts` when a guest taps Request ride, or opens /trips or /wallet.
 - `RiderLayout` is now a single sticky header (Ride / My Trips / Wallet + Download app + session) with
   no bottom tab bar, matching the landing chrome.
+
+
+# Backend v2 — complete rider / driver / admin surface (this session)
+
+The driver client is a **React Native mobile app the user will build separately**; the
+backend below is the contract it consumes. No driver web UI exists by design.
+
+## New libs
+| File | Role |
+|---|---|
+| `lib/rbac.py` | permission catalogue + `require("perm")` route dependency; roles: super_admin / fleet_manager / ops_lead. Reads open, every write gated, checked against the DB per request |
+| `lib/driver_auth.py` | driver Bearer-token sessions (`driver_sessions`), `current_driver` / `approved_driver` |
+| `lib/state_machine.py` | ride transition table + `assert_transition` (OTP gate lives here) |
+| `lib/dispatch.py` | timed offers, one-lock-per-ride accept, radius expansion, search timeout (240s), heartbeat expiry (120s), scheduled release, `sweep()` |
+| `lib/earnings.py` | one earnings engine for commission plan + zero-commission pass; driver ledger, penalties, summaries |
+| `lib/fraud.py` | GPS-jump detection, ignored-offer priority decay, repeat-cancellation prepaid lock, OTP-bypass flags |
+
+## New collections
+`ride_offers`, `driver_sessions`, `driver_otps`, `driver_ledger`, `driver_passes`,
+`payout_accounts`, `payout_runs`, `support_cases`, `fraud_flags`, `saved_places`,
+`emergency_contacts`, `cron_runs` — all indexed in `lib/db.py`.
+
+## Driver partner API (`/api/driver/*`, Bearer token)
+auth request-otp / verify / register / logout · `me` · `profile` · `documents` (GET, POST submit
+or re-upload) · `payout-account` (GET/PUT) · `online` · `presence` · `heartbeat` · `offers`,
+`offers/{id}/accept`, `offers/{id}/decline` · `trips/active`, `trips`, `trips/{id}/arrived`,
+`/start` (OTP), `/complete` (waiting + toll + cash-collected), `/cancel` · `earnings` · `ledger` ·
+`passes`, `my-pass`, `passes/{id}/subscribe` · `incentives`, `incentives/{id}/claim` · `sos` ·
+`disputes` (GET/POST) · `nearby-demand`.
+
+## Admin API added
+- `/api/dispatch/board`, `/dispatch/offers`, `/dispatch/sweep`, `/dispatch/rides/{id}/fan-out`, `/assign-nearest`
+- `/api/finance/summary` (P&L), `/finance/export/rides`, `/finance/export/payouts` (CSV),
+  `/api/rides/{id}/invoice` (GST invoice)
+- `/api/payouts/pending`, `/payouts/runs` (create/list/get), `/payouts/runs/{id}/process`
+  (debits partner balances + ledger; the bank/UPI transfer itself is MOCKED)
+- `/api/support/cases` (list/get/create/notes/PATCH resolve → refund + penalty), `/api/fraud/flags`, PATCH decision
+- `/api/auth/permissions` — what the signed-in admin may write
+
+## Rider API added
+`PATCH /rider/profile` · `/rider/places/saved` (GET/POST/DELETE) · `/rider/emergency-contacts`
+(GET/POST/DELETE) · `/rider/rides/{id}/invoice` · `/rider/disputes` (GET/POST).
+`/rider/rides/{id}/match` now drives the real dispatch engine (fan-out of timed offers, first
+accept wins) and only falls back to nearest-driver assignment after 20s, so the web rider
+journey stays demonstrable until the partner app ships.
+
+## Scheduled work (`.emergent/crons.yml` + `/api/cron/*`, Bearer WEBHOOK_CRON_SECRET)
+`dispatch-sweep` every 15 min · `campaign-life` hourly (activate/expire campaigns, expire passes) ·
+`document-expiry` daily 04:00 IST (blocks partners with expired docs, prunes old offers).
+All three ack immediately and run the work in a background task, keyed on `X-Webhook-Id`.
+
+## Verification
+`backend/tests/smoke_full_api.sh` — 52 assertions over the public URL covering admin auth/RBAC,
+partner onboarding → KYC → online → heartbeat → offer accept → OTP trip → settlement → payout,
+rider invoice/dispute/extras and the cron endpoints (incl. negative cases).

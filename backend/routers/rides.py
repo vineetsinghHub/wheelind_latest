@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from lib.auth import current_admin, log_action
 from lib.db import db
+from lib.rbac import require
 from models.schemas import (
     AdminUser, LedgerEntry, RefundRequest, Ride, RideList, RideStateUpdate, RIDE_STATES, utcnow,
 )
@@ -50,7 +51,7 @@ async def get_ride(ride_id: str, _: AdminUser = Depends(current_admin)):
 
 
 @router.patch("/rides/{ride_id}/state", response_model=Ride)
-async def update_state(ride_id: str, payload: RideStateUpdate, admin: AdminUser = Depends(current_admin)):
+async def update_state(ride_id: str, payload: RideStateUpdate, admin: AdminUser = Depends(require("rides.write"))):
     if payload.state not in RIDE_STATES:
         raise HTTPException(status_code=422, detail=f"Unknown ride state '{payload.state}'")
     doc = await db.rides.find_one({"id": ride_id})
@@ -69,7 +70,7 @@ async def update_state(ride_id: str, payload: RideStateUpdate, admin: AdminUser 
 
 
 @router.post("/rides/{ride_id}/refund", response_model=Ride)
-async def refund_ride(ride_id: str, payload: RefundRequest, admin: AdminUser = Depends(current_admin)):
+async def refund_ride(ride_id: str, payload: RefundRequest, admin: AdminUser = Depends(require("refunds.write"))):
     doc = await db.rides.find_one({"id": ride_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Ride not found")

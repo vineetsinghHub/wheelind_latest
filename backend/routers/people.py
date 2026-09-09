@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from lib.auth import current_admin, log_action
 from lib.db import db
+from lib.rbac import require
 from lib.kyc import EXPIRING_SOON_DAYS, annotate_documents, expiry_status, days_left, rollup_kyc_status
 from models.schemas import (
     AdminUser, DocumentAlert, DocumentDecision, DocumentReupload, Driver, DriverOnlineUpdate,
@@ -88,7 +89,7 @@ async def get_driver(driver_id: str, _: AdminUser = Depends(current_admin)):
 
 @router.post("/drivers/{driver_id}/documents/{doc_type}/reupload", response_model=Driver)
 async def reupload_document(
-    driver_id: str, doc_type: str, payload: DocumentReupload, admin: AdminUser = Depends(current_admin)
+    driver_id: str, doc_type: str, payload: DocumentReupload, admin: AdminUser = Depends(require("kyc.review"))
 ):
     """Partner submits a fresh scan for a REJECTED document; it returns to the review queue.
 
@@ -140,7 +141,7 @@ async def reupload_document(
 
 @router.patch("/drivers/{driver_id}/documents/{doc_type}", response_model=Driver)
 async def decide_document(
-    driver_id: str, doc_type: str, payload: DocumentDecision, admin: AdminUser = Depends(current_admin)
+    driver_id: str, doc_type: str, payload: DocumentDecision, admin: AdminUser = Depends(require("kyc.review"))
 ):
     """Approve or reject ONE document. A rejection needs a reason and pulls the
     driver's file back to action_required rather than rejecting the partner."""
@@ -173,7 +174,7 @@ async def decide_document(
 
 
 @router.patch("/drivers/{driver_id}/kyc", response_model=Driver)
-async def decide_kyc(driver_id: str, payload: KycDecision, admin: AdminUser = Depends(current_admin)):
+async def decide_kyc(driver_id: str, payload: KycDecision, admin: AdminUser = Depends(require("kyc.review"))):
     doc = await db.drivers.find_one({"id": driver_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Driver not found")
@@ -192,7 +193,7 @@ async def decide_kyc(driver_id: str, payload: KycDecision, admin: AdminUser = De
 
 
 @router.patch("/drivers/{driver_id}/online", response_model=Driver)
-async def set_online(driver_id: str, payload: DriverOnlineUpdate, admin: AdminUser = Depends(current_admin)):
+async def set_online(driver_id: str, payload: DriverOnlineUpdate, admin: AdminUser = Depends(require("drivers.write"))):
     doc = await db.drivers.find_one({"id": driver_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Driver not found")
@@ -219,7 +220,7 @@ async def list_riders(q: Optional[str] = None, status: Optional[str] = None, _: 
 
 
 @router.patch("/riders/{rider_id}/status", response_model=Rider)
-async def update_rider_status(rider_id: str, payload: RiderStatusUpdate, admin: AdminUser = Depends(current_admin)):
+async def update_rider_status(rider_id: str, payload: RiderStatusUpdate, admin: AdminUser = Depends(require("riders.write"))):
     doc = await db.riders.find_one({"id": rider_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Rider not found")

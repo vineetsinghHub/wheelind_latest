@@ -79,6 +79,49 @@ INDEXES: dict[str, list[IndexModel]] = {
         IndexModel([("id", ASCENDING)], name="id", unique=True),
         IndexModel([("created_at", DESCENDING)], name="created_desc"),
     ],
+    # ---- driver app + dispatch + ops ----
+    "driver_sessions": [
+        IndexModel([("token", ASCENDING)], name="token", unique=True),
+        IndexModel([("expires_at", ASCENDING)], name="ttl", expireAfterSeconds=0),
+    ],
+    "driver_otps": [
+        IndexModel([("phone", ASCENDING)], name="phone"),
+        IndexModel([("expires_at", ASCENDING)], name="ttl", expireAfterSeconds=0),
+    ],
+    "ride_offers": [
+        IndexModel([("id", ASCENDING)], name="id", unique=True),
+        IndexModel([("ride_id", ASCENDING), ("state", ASCENDING)], name="ride_state"),
+        IndexModel([("driver_id", ASCENDING), ("state", ASCENDING)], name="driver_state"),
+        IndexModel([("state", ASCENDING), ("expires_at", ASCENDING)], name="state_expiry"),
+    ],
+    "driver_ledger": [
+        IndexModel([("id", ASCENDING)], name="id", unique=True),
+        IndexModel([("driver_id", ASCENDING), ("created_at", DESCENDING)], name="driver_created"),
+        IndexModel([("kind", ASCENDING)], name="kind"),
+    ],
+    "driver_passes": [
+        IndexModel([("id", ASCENDING)], name="id", unique=True),
+        IndexModel([("driver_id", ASCENDING), ("status", ASCENDING)], name="driver_status"),
+        IndexModel([("expires_at", ASCENDING)], name="expiry"),
+    ],
+    "payout_accounts": [IndexModel([("driver_id", ASCENDING)], name="driver", unique=True)],
+    "payout_runs": [
+        IndexModel([("id", ASCENDING)], name="id", unique=True),
+        IndexModel([("created_at", DESCENDING)], name="created_desc"),
+    ],
+    "support_cases": [
+        IndexModel([("id", ASCENDING)], name="id", unique=True),
+        IndexModel([("status", ASCENDING), ("created_at", DESCENDING)], name="status_created"),
+        IndexModel([("driver_id", ASCENDING)], name="driver"),
+        IndexModel([("rider_id", ASCENDING)], name="rider"),
+    ],
+    "fraud_flags": [
+        IndexModel([("id", ASCENDING)], name="id", unique=True),
+        IndexModel([("status", ASCENDING), ("created_at", DESCENDING)], name="status_created"),
+    ],
+    "saved_places": [IndexModel([("rider_id", ASCENDING)], name="rider")],
+    "emergency_contacts": [IndexModel([("rider_id", ASCENDING)], name="rider")],
+    "cron_runs": [IndexModel([("job", ASCENDING), ("run_id", ASCENDING)], name="job_run", unique=True)],
 }
 
 

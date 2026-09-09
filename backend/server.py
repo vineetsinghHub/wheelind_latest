@@ -63,12 +63,17 @@ async def get_status_checks():
 from routers import auth as auth_router
 from routers import campaigns as campaigns_router
 from routers import config as config_router
+from routers import cron as cron_router
 from routers import dashboard as dashboard_router
+from routers import dispatch_ops as dispatch_ops_router
+from routers import driver as driver_router
+from routers import finance as finance_router
 from routers import people as people_router
 from routers import pricing as pricing_router
 from routers import rider as rider_router
 from routers import rides as rides_router
 from routers import safety as safety_router
+from routers import support as support_router
 from routers import wallet as wallet_router
 
 api_router.include_router(auth_router.router)
@@ -81,6 +86,11 @@ api_router.include_router(rider_router.router)
 api_router.include_router(campaigns_router.router)
 api_router.include_router(wallet_router.router)
 api_router.include_router(safety_router.router)
+api_router.include_router(driver_router.router)
+api_router.include_router(dispatch_ops_router.router)
+api_router.include_router(finance_router.router)
+api_router.include_router(support_router.router)
+api_router.include_router(cron_router.router)
 
 # Include the router in the main app
 app.include_router(api_router)
