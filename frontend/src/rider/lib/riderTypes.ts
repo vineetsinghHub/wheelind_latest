@@ -88,6 +88,23 @@ export interface TripShare {
   expires_in_min: number;
 }
 
+export interface MapsConfig {
+  provider: string;
+  client_key: string;
+  configured: boolean;
+  tile_url: string;
+  attribution: string;
+}
+
+export interface ReverseGeocode {
+  name: string;
+  area: string;
+  lat: number;
+  lng: number;
+  label: string;
+  distance_km: number;
+}
+
 export const PAYMENT_METHODS = [
   { v: "upi", l: "UPI" },
   { v: "wallet", l: "Wheelind Wallet" },

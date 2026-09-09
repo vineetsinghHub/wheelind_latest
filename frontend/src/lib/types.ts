@@ -149,6 +149,9 @@ export interface Ride {
   drop_lng: number | null;
   promo_code: string | null;
   source: string;
+  scheduled_for: string | null;
+  driver_lat: number | null;
+  driver_lng: number | null;
   rider_rating: number | null;
   rider_comment: string | null;
   created_at: string;

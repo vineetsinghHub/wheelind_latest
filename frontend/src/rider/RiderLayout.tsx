@@ -8,7 +8,7 @@ import { queryClient } from "@/lib/queryClient";
 import type { RiderProfile } from "@/rider/lib/riderTypes";
 
 const TABS = [
-  { to: "/", label: "Ride", icon: Home, end: true },
+  { to: "/ride", label: "Ride", icon: Home, end: true },
   { to: "/trips", label: "My Trips", icon: Clock },
   { to: "/wallet", label: "Wallet", icon: Wallet },
 ];

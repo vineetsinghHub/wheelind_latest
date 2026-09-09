@@ -71,6 +71,25 @@ class BookRequest(BaseModel):
     payment_method: Literal["upi", "credit_card", "debit_card", "net_banking", "cash", "wallet"]
     promo_code: Optional[str] = None
     rider_added_fare: float = Field(default=0, ge=0, le=500)
+    # ISO datetime for a later trip; None books immediately.
+    scheduled_for: Optional[datetime] = None
+
+
+class MapsConfig(BaseModel):
+    provider: str
+    client_key: str
+    configured: bool
+    tile_url: str
+    attribution: str
+
+
+class ReverseGeocode(BaseModel):
+    name: str
+    area: str
+    lat: float
+    lng: float
+    label: str
+    distance_km: float
 
 
 class FareBumpRequest(BaseModel):

@@ -21,6 +21,7 @@ import AuditLogs from "@/pages/AuditLogs";
 // Rider app — the public consumer product at the root.
 import RiderLayout from "@/rider/RiderLayout";
 import RiderWelcome from "@/rider/pages/RiderWelcome";
+import RiderLanding from "@/rider/pages/RiderLanding";
 import RiderBook from "@/rider/pages/RiderBook";
 import RiderTrip from "@/rider/pages/RiderTrip";
 import RiderTrips from "@/rider/pages/RiderTrips";
@@ -31,9 +32,10 @@ export default function App() {
     <>
       <Routes>
         {/* Rider app */}
+        <Route path="/" element={<RiderLanding />} />
         <Route path="/welcome" element={<RiderWelcome />} />
         <Route element={<RiderLayout />}>
-          <Route path="/" element={<RiderBook />} />
+          <Route path="/ride" element={<RiderBook />} />
           <Route path="/trip/:rideId" element={<RiderTrip />} />
           <Route path="/trips" element={<RiderTrips />} />
           <Route path="/wallet" element={<RiderWalletPage />} />

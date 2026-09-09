@@ -3,7 +3,7 @@
 ## Two apps, one deployment
 | App | URL | Auth cookie | Who |
 |---|---|---|---|
-| **Rider app** | `/` (sign-in at `/welcome`) | `wl_rider` (30d) | public consumers |
+| **Rider app** | `/` marketing landing, booking at `/ride`, sign-in `/welcome` | `wl_rider` (30d) | public consumers |
 | **Admin console** | `/admin` (sign-in at `/admin/login`) | `wl_session` (7d) | Wheelind staff |
 
 Separate shells, layouts, designs and sessions; they share one MongoDB, so a rider's booking
@@ -203,6 +203,7 @@ multipart endpoint. Replacing `DOC_IMAGES` with real S3/GCS keys is the upgrade 
 ## Rider routes → pages (`frontend/src/rider/`)
 | Path | Page | What it does |
 |---|---|---|
+| `/` | `RiderLanding.tsx` | full marketing landing page (hero, 8 services, how-it-works, safety, offers, captain pass, FAQ, CTA) |
 | `/welcome` | `RiderWelcome.tsx` | hero landing + phone → OTP sign-in (code shown on screen), link to the admin console |
 | `/` | `RiderBook.tsx` | place-search pickup/drop, road distance, per-category fare cards with ETA/surge, promo chips, payment picker, request ride; auto-redirects to a live trip |
 | `/trip/:rideId` | `RiderTrip.tsx` | live stage tracking (4s poll), search progress bar with 180s timeout, driver card with masked call + trip share, OTP-to-start, driver simulator, SOS, cancel, completion + star rating |

@@ -44,7 +44,7 @@ export default function RiderWelcome() {
     onSuccess: (r) => {
       queryClient.clear();
       toast.success(`Welcome, ${r.name}`);
-      navigate("/", { replace: true });
+      navigate("/ride", { replace: true });
     },
     onError: (e) => toast.error(msg(e, "Verification failed")),
   });

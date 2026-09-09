@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { BadgePercent, MapPin, Navigation, Search, Users } from "lucide-react";
+import { BadgePercent, CalendarClock, Crosshair, MapPin, Navigation, Search, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { ApiError, apiGet, apiPost } from "@/lib/api";
-import type { CategoryEstimate, EstimateResponse, Place, RideWithDriver, RiderPromo } from "@/rider/lib/riderTypes";
+import type { CategoryEstimate, EstimateResponse, Place, ReverseGeocode, RideWithDriver, RiderPromo } from "@/rider/lib/riderTypes";
 import { PAYMENT_METHODS } from "@/rider/lib/riderTypes";
 import type { Ride } from "@/lib/types";
-import { inr2 } from "@/lib/types";
+import { inr2, fmtDateTime, titleize } from "@/lib/types";
 
 function msg(e: unknown, fallback: string) {
   if (e instanceof ApiError && e.body && typeof e.body === "object") {
@@ -97,6 +97,38 @@ export default function RiderBook() {
   const [selected, setSelected] = useState<string | null>(null);
   const [payment, setPayment] = useState<string>("upi");
   const [promo, setPromo] = useState("");
+  const [locating, setLocating] = useState(false);
+  const [scheduleAt, setScheduleAt] = useState("");
+  const [showSchedule, setShowSchedule] = useState(false);
+
+  // Browser GPS -> nearest known place (vendor reverse-geocode swaps in server-side).
+  function useMyLocation() {
+    if (!navigator.geolocation) {
+      toast.error("Location isn't available on this device");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const p = await apiGet<ReverseGeocode>(
+            `/rider/reverse-geocode?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`,
+          );
+          setPickup({ name: p.name, area: p.area, lat: p.lat, lng: p.lng, label: p.label });
+          toast.success(`Pickup set to ${p.name}`);
+        } catch {
+          toast.error("Could not resolve your location");
+        } finally {
+          setLocating(false);
+        }
+      },
+      () => {
+        setLocating(false);
+        toast.error("Location permission denied — pick your area manually");
+      },
+      { timeout: 8000 },
+    );
+  }
 
   // An in-flight ride owns the screen — jump straight to tracking.
   const { data: active } = useQuery({
@@ -110,6 +142,16 @@ export default function RiderBook() {
   const { data: promos } = useQuery({
     queryKey: ["rider-promos"],
     queryFn: () => apiGet<RiderPromo[]>("/rider/promos"),
+  });
+
+  // Release any scheduled ride whose window has opened, then surface what's upcoming.
+  const { data: scheduled } = useQuery({
+    queryKey: ["rider-scheduled"],
+    queryFn: async () => {
+      await apiPost<Ride[]>("/rider/scheduled/dispatch-due").catch(() => []);
+      return apiGet<Ride[]>("/rider/scheduled");
+    },
+    refetchInterval: 30000,
   });
 
   const { data: estimate, isFetching } = useQuery({
@@ -137,9 +179,17 @@ export default function RiderBook() {
         payment_method: payment,
         promo_code: promo.trim() ? promo.trim().toUpperCase() : null,
         rider_added_fare: 0,
+        scheduled_for: showSchedule && scheduleAt ? new Date(scheduleAt).toISOString() : null,
       }),
     onSuccess: (ride) => {
       qc.invalidateQueries({ queryKey: ["rider-active"] });
+      qc.invalidateQueries({ queryKey: ["rider-scheduled"] });
+      if (ride.scheduled_for) {
+        toast.success(`${ride.code} scheduled — we'll dispatch it automatically`);
+        setShowSchedule(false);
+        setScheduleAt("");
+        return;
+      }
       toast.success(`${ride.code} requested — finding you a partner`);
       navigate(`/trip/${ride.id}`);
     },
@@ -163,6 +213,16 @@ export default function RiderBook() {
           testId="pickup-input"
           accent="#34D399"
         />
+        <button
+          type="button"
+          onClick={useMyLocation}
+          disabled={locating}
+          data-testid="use-my-location"
+          className="flex items-center gap-1.5 text-[11px] font-medium text-[#F5D061] transition-colors duration-150 hover:text-[#E5C158] disabled:opacity-50"
+        >
+          <Crosshair size={12} />
+          {locating ? "Locating…" : "Use my current location"}
+        </button>
         <PlaceField label="DROP" value={drop} onPick={setDrop} testId="drop-input" accent="#F5D061" />
         {estimate ? (
           <p className="wl-mono flex items-center gap-1.5 text-[11px] text-[#8E95A5]" data-testid="trip-distance">
@@ -170,6 +230,38 @@ export default function RiderBook() {
           </p>
         ) : null}
       </div>
+
+      {scheduled && scheduled.length > 0 ? (
+        <div className="rounded-2xl border border-[#634E1D] bg-[#2A2312] p-4" data-testid="scheduled-panel">
+          <p className="wl-overline flex items-center gap-1.5">
+            <CalendarClock size={12} /> Upcoming rides
+          </p>
+          <ul className="mt-3 space-y-2">
+            {scheduled.map((s) => (
+              <li
+                key={s.id}
+                data-testid={`scheduled-ride-${s.code}`}
+                className="flex items-center justify-between gap-3 rounded-xl border border-[#634E1D]/60 bg-[#0D0F14] px-3 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="text-[13px] text-white">
+                    {s.pickup} <span className="text-[#5E6575]">→</span> {s.drop}
+                  </p>
+                  <p className="wl-mono mt-0.5 text-[10px] text-[#C5A25D]">
+                    {s.scheduled_for ? fmtDateTime(s.scheduled_for) : ""} · {titleize(s.category)}
+                  </p>
+                </div>
+                <span className="wl-mono shrink-0 text-[12px] font-semibold text-[#F5D061]">
+                  {inr2(s.fare.total)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[10px] text-[#8E95A5]">
+            Dispatched automatically 5 minutes before pickup.
+          </p>
+        </div>
+      ) : null}
 
       {promos && promos.length > 0 ? (
         <div className="rounded-2xl border border-[#232834] bg-[#11141A] p-4">
@@ -291,7 +383,31 @@ export default function RiderBook() {
 
               <button
                 type="button"
-                disabled={book.isPending}
+                onClick={() => setShowSchedule((v) => !v)}
+                data-testid="schedule-toggle"
+                className={`flex w-full items-center justify-center gap-2 rounded-xl border py-2.5 text-[12px] transition-colors duration-150 ${
+                  showSchedule
+                    ? "border-[#634E1D] bg-[#2A2312] font-semibold text-[#F5D061]"
+                    : "border-[#2A303F] text-[#9BA1B0] hover:text-white"
+                }`}
+              >
+                <CalendarClock size={13} />
+                {showSchedule ? "Booking for later" : "Schedule for later"}
+              </button>
+
+              {showSchedule ? (
+                <input
+                  type="datetime-local"
+                  value={scheduleAt}
+                  onChange={(e) => setScheduleAt(e.target.value)}
+                  data-testid="schedule-datetime-input"
+                  className="wl-mono w-full rounded-xl border border-[#2A303F] bg-[#0D0F14] px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-[#D4AF37]"
+                />
+              ) : null}
+
+              <button
+                type="button"
+                disabled={book.isPending || (showSchedule && !scheduleAt)}
                 onClick={() => {
                   const opt = options.find((o) => o.category === selected);
                   if (opt) book.mutate(opt);
@@ -301,7 +417,9 @@ export default function RiderBook() {
               >
                 {book.isPending
                   ? "Requesting…"
-                  : `Request ${options.find((o) => o.category === selected)?.label}`}
+                  : showSchedule
+                    ? "Schedule this ride"
+                    : `Request ${options.find((o) => o.category === selected)?.label}`}
               </button>
             </div>
           ) : null}

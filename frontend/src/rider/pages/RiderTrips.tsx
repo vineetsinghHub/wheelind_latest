@@ -30,7 +30,7 @@ export default function RiderTrips() {
           <p className="text-[14px] text-white">No rides yet</p>
           <p className="mt-1 text-[12px] text-[#8E95A5]">Your completed trips will show up here.</p>
           <Link
-            to="/"
+            to="/ride"
             data-testid="trips-book-cta"
             className="mt-4 inline-block rounded-xl bg-[#D4AF37] px-5 py-2.5 text-[13px] font-semibold text-[#0B0C10]"
           >

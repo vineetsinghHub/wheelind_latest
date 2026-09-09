@@ -209,6 +209,9 @@ class Ride(BaseModel):
     drop_lng: Optional[float] = None
     promo_code: Optional[str] = None
     source: str = "seed"
+    scheduled_for: Optional[datetime] = None
+    driver_lat: Optional[float] = None
+    driver_lng: Optional[float] = None
     rider_rating: Optional[int] = None
     rider_comment: Optional[str] = None
     created_at: datetime = Field(default_factory=utcnow)

@@ -8,12 +8,14 @@ from typing import Optional
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Response
 
 from lib.db import db
-from lib.places import duration_min, road_distance_km, search_places
+from lib.places import PLACES, duration_min, haversine_km, road_distance_km, search_places
 from lib.pricing import quote_fare
+from lib.providers import maps_config, send_otp_sms
 from models.rider import (
     BookRequest, CategoryEstimate, EstimateRequest, EstimateResponse, FareBumpRequest,
-    OtpChallenge, OtpRequest, OtpStartRequest, OtpVerify, Place, RateRequest, RechargeRequest,
-    RideWithDriver, RiderProfile, RiderPromo, RiderWallet, SosRequest, TripShare,
+    MapsConfig, OtpChallenge, OtpRequest, OtpStartRequest, OtpVerify, Place, RateRequest,
+    RechargeRequest, ReverseGeocode, RideWithDriver, RiderProfile, RiderPromo, RiderWallet,
+    SosRequest, TripShare,
 )
 from models.schemas import FareBreakup, LedgerEntry, Ride, Rider, SosIncident, utcnow
 
@@ -65,8 +67,34 @@ async def request_otp(payload: OtpRequest):
         "phone": phone, "otp": otp,
         "expires_at": utcnow() + timedelta(seconds=OTP_TTL_SEC),
     })
+    sent = await send_otp_sms(phone, otp)
     return OtpChallenge(
-        phone=phone, otp_hint=otp, expires_in_sec=OTP_TTL_SEC, is_new_user=existing is None
+        phone=phone,
+        # Only surfaced while no SMS gateway is configured.
+        otp_hint=otp if sent["expose_otp"] else "",
+        expires_in_sec=OTP_TTL_SEC,
+        is_new_user=existing is None,
+    )
+
+
+@router.get("/maps-config", response_model=MapsConfig)
+async def get_maps_config():
+    """Frontend reads its tile source/provider from here — no keys hardcoded in the client."""
+    return MapsConfig(**maps_config())
+
+
+@router.get("/reverse-geocode", response_model=ReverseGeocode)
+async def reverse_geocode(lat: float = Query(...), lng: float = Query(...)):
+    """Resolve a GPS fix to the nearest known place.
+
+    With OLA_MAPS_API_KEY / MAPPLS_REST_KEY set this should call the vendor's reverse-geocode
+    endpoint; until then it snaps to the nearest entry in the curated Kolkata list.
+    """
+    best = min(PLACES, key=lambda p: haversine_km(lat, lng, p[2], p[3]))
+    name, area, plat, plng = best
+    return ReverseGeocode(
+        name=name, area=area, lat=plat, lng=plng, label=f"{name}, {area}",
+        distance_km=round(haversine_km(lat, lng, plat, plng), 2),
     )
 
 
@@ -192,7 +220,6 @@ async def book_ride(payload: BookRequest, rider: Rider = Depends(current_rider))
     active = await db.rides.find_one({"rider_id": rider.id, "state": {"$in": LIVE_STATES}})
     if active:
         raise HTTPException(status_code=409, detail=f"You already have a ride in progress ({active['code']})")
-
     cfg = await db.fare_configs.find_one({"category": payload.category})
     if not cfg:
         raise HTTPException(status_code=404, detail="That service is not configured")
@@ -257,13 +284,88 @@ async def book_ride(payload: BookRequest, rider: Rider = Depends(current_rider))
         drop_lat=payload.drop_lat, drop_lng=payload.drop_lng,
         promo_code=applied_promo["code"] if applied_promo else None,
         source="rider_app",
+        scheduled_for=payload.scheduled_for,
     )
+    # A scheduled trip parks in `draft` until its dispatch window opens.
+    if payload.scheduled_for:
+        if _aware(payload.scheduled_for) <= utcnow() + timedelta(minutes=4):
+            raise HTTPException(status_code=422, detail="Schedule a ride at least 5 minutes ahead")
+        ride.state = "draft"
     await db.rides.insert_one(ride.model_dump())
 
     if applied_promo:
         await db.campaigns.update_one({"id": applied_promo["id"]},
                                       {"$inc": {"budget_used": discount, "redemptions": 1}})
     return ride
+
+
+async def _step_driver(doc: dict) -> dict:
+    """Move the assigned driver a step toward its current target and persist it.
+
+    Stands in for a real location heartbeat: en route to pickup before the trip starts,
+    then toward the drop once in progress. Called on each rider poll.
+    """
+    if not doc.get("driver_id") or doc["state"] not in (
+        "driver_assigned", "driver_arriving", "waiting_at_pickup", "otp_pending", "in_progress"
+    ):
+        return doc
+
+    d = await db.drivers.find_one({"id": doc["driver_id"]})
+    if not d:
+        return doc
+
+    cur_lat = doc.get("driver_lat") or d["lat"]
+    cur_lng = doc.get("driver_lng") or d["lng"]
+    if doc["state"] == "in_progress":
+        tgt_lat = doc.get("drop_lat") or doc["pickup_lat"]
+        tgt_lng = doc.get("drop_lng") or doc["pickup_lng"]
+        step = 0.22
+    else:
+        tgt_lat, tgt_lng = doc["pickup_lat"], doc["pickup_lng"]
+        step = 0.28
+
+    new_lat = round(cur_lat + (tgt_lat - cur_lat) * step, 6)
+    new_lng = round(cur_lng + (tgt_lng - cur_lng) * step, 6)
+
+    await db.rides.update_one({"id": doc["id"]}, {"$set": {"driver_lat": new_lat, "driver_lng": new_lng}})
+    await db.drivers.update_one({"id": d["id"]}, {"$set": {
+        "lat": new_lat, "lng": new_lng,
+        "location": {"type": "Point", "coordinates": [new_lng, new_lat]},
+        "last_heartbeat": utcnow(),
+    }})
+    doc["driver_lat"], doc["driver_lng"] = new_lat, new_lng
+
+    # Auto-advance to "arriving" once the driver is genuinely close.
+    if doc["state"] == "driver_assigned" and haversine_km(new_lat, new_lng, tgt_lat, tgt_lng) < 0.6:
+        await db.rides.update_one({"id": doc["id"]}, {"$set": {"state": "driver_arriving"}})
+        doc["state"] = "driver_arriving"
+    return doc
+
+
+@router.post("/scheduled/dispatch-due", response_model=list[Ride])
+async def dispatch_due(rider: Rider = Depends(current_rider)):
+    """Release scheduled rides whose window has opened (within 5 minutes of pickup)."""
+    due = await db.rides.find({
+        "rider_id": rider.id, "state": "draft",
+        "scheduled_for": {"$ne": None, "$lte": utcnow() + timedelta(minutes=5)},
+    }).to_list(20)
+    released = []
+    for doc in due:
+        await db.rides.update_one({"id": doc["id"]}, {"$set": {"state": "searching", "created_at": utcnow()}})
+        fresh = await db.rides.find_one({"id": doc["id"]})
+        fresh.pop("_id", None)
+        released.append(Ride(**fresh))
+    return released
+
+
+@router.get("/scheduled", response_model=list[Ride])
+async def scheduled_rides(rider: Rider = Depends(current_rider)):
+    docs = await db.rides.find({
+        "rider_id": rider.id, "state": "draft", "scheduled_for": {"$ne": None},
+    }).sort("scheduled_for", 1).to_list(20)
+    for d in docs:
+        d.pop("_id", None)
+    return [Ride(**d) for d in docs]
 
 
 async def _load_ride(ride_id: str, rider: Rider) -> dict:
@@ -283,7 +385,9 @@ async def _hydrate(doc: dict) -> RideWithDriver:
         if d:
             phone = d["phone"]
             extra = {
-                "driver_lat": d["lat"], "driver_lng": d["lng"], "driver_phone": phone,
+                "driver_lat": doc.get("driver_lat") or d["lat"],
+                "driver_lng": doc.get("driver_lng") or d["lng"],
+                "driver_phone": phone,
                 "driver_rating": d.get("rating"), "vehicle_model": d["vehicle_model"],
                 "vehicle_number": d["vehicle_number"],
                 # Masked calling is not integrated; this is a display-only proxy number.
@@ -310,7 +414,8 @@ async def ride_history(rider: Rider = Depends(current_rider), limit: int = Query
 
 @router.get("/rides/{ride_id}", response_model=RideWithDriver)
 async def ride_detail(ride_id: str, rider: Rider = Depends(current_rider)):
-    return await _hydrate(await _load_ride(ride_id, rider))
+    doc = await _load_ride(ride_id, rider)
+    return await _hydrate(await _step_driver(doc))
 
 
 @router.post("/rides/{ride_id}/match", response_model=RideWithDriver)

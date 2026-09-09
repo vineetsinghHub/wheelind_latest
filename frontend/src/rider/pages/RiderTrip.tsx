@@ -8,6 +8,7 @@ import { ApiError, apiGet, apiPost } from "@/lib/api";
 import type { RideWithDriver, TripShare } from "@/rider/lib/riderTypes";
 import { RIDE_STAGE_COPY } from "@/rider/lib/riderTypes";
 import { inr2, titleize } from "@/lib/types";
+import TripMap from "@/rider/components/TripMap";
 
 const SEARCH_TIMEOUT = 180;
 
@@ -168,6 +169,15 @@ export default function RiderTrip() {
       </div>
 
       {ride.driver_name ? (
+        <TripMap
+          pickup={[ride.pickup_lat, ride.pickup_lng]}
+          drop={ride.drop_lat && ride.drop_lng ? [ride.drop_lat, ride.drop_lng] : null}
+          driver={data.driver_lat && data.driver_lng ? [data.driver_lat, data.driver_lng] : null}
+          inProgress={ride.state === "in_progress"}
+        />
+      ) : null}
+
+      {ride.driver_name ? (
         <div className="rounded-2xl border border-[#232834] bg-[#11141A] p-4" data-testid="driver-card">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -324,7 +334,7 @@ export default function RiderTrip() {
           ) : null}
           <button
             type="button"
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/ride")}
             data-testid="book-another-button"
             className="mt-4 w-full rounded-xl bg-[#D4AF37] py-3 text-[14px] font-semibold text-[#0B0C10] transition-colors duration-150 hover:bg-[#E5C158]"
           >
@@ -336,7 +346,7 @@ export default function RiderTrip() {
       {closed && ride.state !== "completed" ? (
         <button
           type="button"
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/ride")}
           data-testid="back-to-book-button"
           className="w-full rounded-xl border border-[#2A303F] py-3 text-[14px] text-[#C2C7D4] transition-colors duration-150 hover:border-[#D4AF37]/60 hover:text-white"
         >
